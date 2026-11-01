@@ -6,8 +6,8 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
     if (!editorLayer) return false;
 
     // Считываем настройки мода
-    float bpm = static_cast<float>(Mod::get()->getSettingValue<double>("bpm"));
-    int obstacleCount = Mod::get()->getSettingValue<int64_t>("obstacle-count");
+    float bpm = Mod::get()->getSettingValue<float>("bpm");
+    int obstacleCount = static_cast<int>(Mod::get()->getSettingValue<int64_t>("obstacle-count"));
     bool includeOrbs = Mod::get()->getSettingValue<bool>("include-orbs");
     bool autoReplay = Mod::get()->getSettingValue<bool>("auto-replay");
 
@@ -43,7 +43,7 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
                 // Рассчитываем тайминг прыжка перед шипом
                 float jumpX = currentX - 40.0f;
                 size_t pressFrame = static_cast<size_t>((jumpX / speedUnitsPerSec) * fps);
-                size_t releaseFrame = pressFrame + 18; // Длительность нажатия (полный прыжок)
+                size_t releaseFrame = pressFrame + 18;
 
                 macro->addEventDirect(pressFrame, true, false, 1);
                 macro->addEventDirect(releaseFrame, false, false, 1);
@@ -54,7 +54,6 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
                 editorLayer->createObject(8, ccp(currentX + blockSize, groundY), false);
                 placedObjects += 2;
 
-                // Более ранний прыжок для двойного шипа
                 float jumpX = currentX - 45.0f;
                 size_t pressFrame = static_cast<size_t>((jumpX / speedUnitsPerSec) * fps);
                 size_t releaseFrame = pressFrame + 22;
@@ -70,7 +69,6 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
                 editorLayer->createObject(36, ccp(currentX, orbY), false);       // Желтая сфера
                 placedObjects += 2;
 
-                // Клик прямо в сфере
                 float hitX = currentX - 8.0f;
                 size_t pressFrame = static_cast<size_t>((hitX / speedUnitsPerSec) * fps);
                 size_t releaseFrame = pressFrame + 8;
@@ -113,7 +111,6 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
         "Отлично"
     )->show();
 
-    // Если включен авто-реплей — подготавливаем воспроизведение
     if (autoReplay) {
         macro->startPlayback();
     }
