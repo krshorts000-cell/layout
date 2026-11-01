@@ -3,54 +3,101 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 using namespace geode::prelude;
 
-struct MacroEvent {
-    size_t frame;      // Номер кадра (при стандартных 240 FPS)
-    bool isDown;       // true = нажатие (press), false = отпускание (release)
-    bool isPlayer2;    // Для режима двух игроков (дуалы)
-    int button;        // 1 = прыжок, 2 = влево, 3 = вправо
-};
-
 enum class MacroState {
-    Idle,
+    None,
     Recording,
     Playing
 };
 
+struct MacroInput {
+    int frame = 0;
+    int button = 1;      // 1 = Jump, 2 = Left, 3 = Right
+    bool player2 = false;
+    bool isDown = false; // true = Press, false = Release
+
+    bool operator<(const MacroInput& other) const {
+        return frame < other.frame;
+    }
+};
+
 class MacroManager {
-private:
-    MacroState m_state = MacroState::Idle;
-    float m_fps = 240.0f;
-    size_t m_currentFrame = 0;
-    size_t m_playbackIndex = 0;
-    std::vector<MacroEvent> m_events;
-
-    MacroManager() = default;
-
 public:
-    static MacroManager* get();
+    static MacroManager& get() {
+        static MacroManager instance;
+        return instance;
+    }
 
-    MacroState getState() const { return m_state; }
-    bool isRecording() const { return m_state == MacroState::Recording; }
-    bool isPlaying() const { return m_state == MacroState::Playing; }
-    size_t getEventCount() const { return m_events.size(); }
-    const std::vector<MacroEvent>& getEvents() const { return m_events; }
+    MacroState state = MacroState::None;
+    size_t currentAction = 0;
+    std::vector<MacroInput> inputs;
+    bool isSimulating = false;
 
-    void startRecording(float fps = 240.0f);
-    void stopRecording();
+    bool isPlaying() const { return state == MacroState::Playing; }
+    bool isRecording() const { return state == MacroState::Recording; }
 
-    void recordInput(bool isDown, bool isPlayer2 = false, int button = 1);
-    void addEventDirect(size_t frame, bool isDown, bool isPlayer2 = false, int button = 1);
+    void recordAction(int frame, int button, bool player2, bool down) {
+        inputs.push_back({frame, button, player2, down});
+        log::debug("[XDBot] Записано: кадр={}, кнопка={}, зажата={}", frame, button, down);
+    }
 
-    void startPlayback();
-    void stopPlayback();
+    void handlePlaying(GJBaseGameLayer* layer, int frame) {
+        if (!layer) return;
 
-    void update(float dt, PlayerObject* player1, PlayerObject* player2);
+        isSimulating = true;
+        while (currentAction < inputs.size() && frame >= inputs[currentAction].frame) {
+            const auto& input = inputs[currentAction];
+            layer->handleButton(input.isDown, input.button, input.player2);
+            currentAction++;
+        }
+        isSimulating = false;
+    }
 
-    void clear();
+    void resetPlayback() {
+        currentAction = 0;
+        isSimulating = false;
+    }
 
-    std::string saveToFile(const std::string& baseName = "layout_macro");
+    void clear() {
+        inputs.clear();
+        currentAction = 0;
+        state = MacroState::None;
+        isSimulating = false;
+    }
+
+    void togglePlaying() {
+        if (state == MacroState::Playing) {
+            state = MacroState::None;
+            resetPlayback();
+            Notification::create("Бот: ВЫКЛ", NotificationIcon::Warning)->show();
+        } else {
+            if (inputs.empty()) {
+                Notification::create("Нет макроса! Нажмите Gen или Rec.", NotificationIcon::Error)->show();
+                return;
+            }
+            std::sort(inputs.begin(), inputs.end());
+            state = MacroState::Playing;
+            resetPlayback();
+            Notification::create(fmt::format("Бот: ВКЛ (XDBot, кликов: {})", inputs.size()), NotificationIcon::Success)->show();
+        }
+    }
+
+    void toggleRecording() {
+        if (state == MacroState::Recording) {
+            state = MacroState::None;
+            std::sort(inputs.begin(), inputs.end());
+            Notification::create(fmt::format("Запись завершена (кликов: {})", inputs.size()), NotificationIcon::Success)->show();
+            saveToFile("recorded_macro");
+        } else {
+            clear();
+            state = MacroState::Recording;
+            Notification::create("Запись макроса началась! Играйте уровень.", NotificationIcon::Info)->show();
+        }
+    }
+
+    std::string saveToFile(const std::string& baseName = "xdbot_macro");
     bool loadFromFile(const std::filesystem::path& path);
 };

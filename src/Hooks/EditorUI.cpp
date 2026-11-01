@@ -9,32 +9,52 @@ class $modify(MyEditorUI, EditorUI) {
     bool init(LevelEditorLayer* editorLayer) {
         if (!EditorUI::init(editorLayer)) return false;
 
-        // 1. Кнопка генерации лейаута + записи макроса
-        auto genSpr = ButtonSprite::create("Gen", "goldFont.fnt", "GJ_button_01.png", 0.75f);
+        auto winSize = CCDirector::sharedDirector()->getWinSize();
+
+        // Создаем отдельное меню инструментов под панелью воспроизведения, чтобы не перекрывать шестеренку
+        auto customMenu = CCMenu::create();
+        customMenu->setID("xdbot-layout-menu"_spr);
+        customMenu->setLayout(RowLayout::create()->setGap(6.0f));
+
+        // 1. Кнопка Gen (генерация лейаута)
+        auto genSpr = ButtonSprite::create("Gen", "goldFont.fnt", "GJ_button_01.png", 0.65f);
         auto genBtn = CCMenuItemSpriteExtra::create(
             genSpr,
             this,
             menu_selector(MyEditorUI::onGenerateLayout)
         );
-        genBtn->setID("layout-gen-button"_spr);
+        genBtn->setID("xdbot-gen-btn"_spr);
 
-        // 2. Кнопка запуска/остановки бота-воспроизведения
-        auto botSpr = ButtonSprite::create("Bot", "bigFont.fnt", "GJ_button_02.png", 0.75f);
+        // 2. Кнопка Bot (включение XDBot авто-прохождения)
+        auto botSpr = ButtonSprite::create("Bot", "bigFont.fnt", "GJ_button_02.png", 0.65f);
         auto botBtn = CCMenuItemSpriteExtra::create(
             botSpr,
             this,
             menu_selector(MyEditorUI::onToggleBot)
         );
-        botBtn->setID("layout-bot-button"_spr);
+        botBtn->setID("xdbot-bot-btn"_spr);
 
-        // Ищем меню воспроизведения в верхней панели редактора
-        if (auto menu = this->getChildByID("playback-menu")) {
-            menu->addChild(genBtn);
-            menu->addChild(botBtn);
-            m_uiItems->addObject(genBtn);
-            m_uiItems->addObject(botBtn);
-            menu->updateLayout();
-        }
+        // 3. Кнопка Rec (живая запись кликов игрока)
+        auto recSpr = ButtonSprite::create("Rec", "bigFont.fnt", "GJ_button_06.png", 0.65f);
+        auto recBtn = CCMenuItemSpriteExtra::create(
+            recSpr,
+            this,
+            menu_selector(MyEditorUI::onToggleRec)
+        );
+        recBtn->setID("xdbot-rec-btn"_spr);
+
+        customMenu->addChild(genBtn);
+        customMenu->addChild(botBtn);
+        customMenu->addChild(recBtn);
+        customMenu->updateLayout();
+
+        // Позиционируем меню чуть ниже верхних кнопок в левом верхнем углу
+        customMenu->setPosition(ccp(110.0f, winSize.height - 56.0f));
+
+        this->addChild(customMenu);
+        m_uiItems->addObject(genBtn);
+        m_uiItems->addObject(botBtn);
+        m_uiItems->addObject(recBtn);
 
         return true;
     }
@@ -45,20 +65,10 @@ class $modify(MyEditorUI, EditorUI) {
     }
 
     void onToggleBot(CCObject*) {
-        auto macro = MacroManager::get();
-        if (macro->isPlaying()) {
-            macro->stopPlayback();
-            Notification::create("Бот остановлен", NotificationIcon::Warning)->show();
-        } else {
-            if (macro->getEventCount() == 0) {
-                Notification::create("Нет записанного макроса! Сначала нажмите Gen.", NotificationIcon::Error)->show();
-                return;
-            }
-            macro->startPlayback();
-            // Запускаем тест уровня в редакторе
-            if (m_editorLayer && m_editorLayer->m_editorUI) {
-                m_editorLayer->m_editorUI->onPlaytest(nullptr);
-            }
-        }
+        MacroManager::get().togglePlaying();
+    }
+
+    void onToggleRec(CCObject*) {
+        MacroManager::get().toggleRecording();
     }
 };

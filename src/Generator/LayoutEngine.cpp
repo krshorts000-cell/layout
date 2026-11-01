@@ -11,22 +11,20 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
     bool includeOrbs = Mod::get()->getSettingValue<bool>("include-orbs");
     bool autoReplay = Mod::get()->getSettingValue<bool>("auto-replay");
 
-    // Физические константы Geometry Dash (1x скорость)
-    const float speedUnitsPerSec = 311.58f;
-    const float fps = 240.0f;
+    // Константы физики Geometry Dash 2.2 (1x скорость)
+    const float unitsPerFrame = 1.29825f; // 311.58 units/sec / 240 TPS
     const float groundY = 105.0f;
     const float blockSize = 30.0f;
 
     // Расчет расстояния за 1 бит
     float secondsPerBeat = 60.0f / bpm;
-    float unitsPerBeat = secondsPerBeat * speedUnitsPerSec;
+    float unitsPerBeat = secondsPerBeat * 311.58f;
 
-    // Запускаем запись макроса
-    auto macro = MacroManager::get();
-    macro->startRecording(fps);
+    auto& macro = MacroManager::get();
+    macro.clear();
 
-    float currentX = 350.0f; // Начальная точка генерации
-    std::mt19937 rng(1337);  // Детерминированный генератор
+    float currentX = 380.0f; // Начальная точка генерации
+    std::mt19937 rng(42);
     std::uniform_int_distribution<int> typeDist(0, includeOrbs ? 3 : 1);
 
     int placedObjects = 0;
@@ -36,83 +34,85 @@ bool LayoutEngine::generate(LevelEditorLayer* editorLayer) {
         int patternType = typeDist(rng);
 
         switch (patternType) {
-            case 0: { // Одиночный шип на полу
-                editorLayer->createObject(8, ccp(currentX, groundY), false);
+            case 0: { // Одиночный шип
+                editorLayer->createObject(8, ccp(currentX, groundY), true);
                 placedObjects++;
 
-                // Рассчитываем тайминг прыжка перед шипом
-                float jumpX = currentX - 40.0f;
-                size_t pressFrame = static_cast<size_t>((jumpX / speedUnitsPerSec) * fps);
-                size_t releaseFrame = pressFrame + 18;
+                // Рассчитываем точный кадр прыжка (за 35 единиц до шипа)
+                float jumpX = currentX - 35.0f;
+                int pressFrame = static_cast<int>(jumpX / unitsPerFrame);
+                int releaseFrame = pressFrame + 18;
 
-                macro->addEventDirect(pressFrame, true, false, 1);
-                macro->addEventDirect(releaseFrame, false, false, 1);
+                macro.recordAction(pressFrame, 1, false, true);
+                macro.recordAction(releaseFrame, 1, false, false);
                 break;
             }
-            case 1: { // Двойной шип на полу
-                editorLayer->createObject(8, ccp(currentX, groundY), false);
-                editorLayer->createObject(8, ccp(currentX + blockSize, groundY), false);
+            case 1: { // Двойной шип
+                editorLayer->createObject(8, ccp(currentX, groundY), true);
+                editorLayer->createObject(8, ccp(currentX + blockSize, groundY), true);
                 placedObjects += 2;
 
-                float jumpX = currentX - 45.0f;
-                size_t pressFrame = static_cast<size_t>((jumpX / speedUnitsPerSec) * fps);
-                size_t releaseFrame = pressFrame + 22;
+                // Более ранний прыжок под двойной шип
+                float jumpX = currentX - 42.0f;
+                int pressFrame = static_cast<int>(jumpX / unitsPerFrame);
+                int releaseFrame = pressFrame + 22;
 
-                macro->addEventDirect(pressFrame, true, false, 1);
-                macro->addEventDirect(releaseFrame, false, false, 1);
+                macro.recordAction(pressFrame, 1, false, true);
+                macro.recordAction(releaseFrame, 1, false, false);
                 currentX += blockSize;
                 break;
             }
             case 2: { // Желтая сфера над шипом
                 float orbY = groundY + 55.0f;
-                editorLayer->createObject(8, ccp(currentX, groundY), false);     // Шип внизу
-                editorLayer->createObject(36, ccp(currentX, orbY), false);       // Желтая сфера
+                editorLayer->createObject(8, ccp(currentX, groundY), true);
+                editorLayer->createObject(36, ccp(currentX, orbY), true);
                 placedObjects += 2;
 
-                float hitX = currentX - 8.0f;
-                size_t pressFrame = static_cast<size_t>((hitX / speedUnitsPerSec) * fps);
-                size_t releaseFrame = pressFrame + 8;
+                // Клик точно на позиции сферы
+                float hitX = currentX - 6.0f;
+                int pressFrame = static_cast<int>(hitX / unitsPerFrame);
+                int releaseFrame = pressFrame + 6;
 
-                macro->addEventDirect(pressFrame, true, false, 1);
-                macro->addEventDirect(releaseFrame, false, false, 1);
+                macro.recordAction(pressFrame, 1, false, true);
+                macro.recordAction(releaseFrame, 1, false, false);
                 break;
             }
-            case 3: { // Платформа с прыжком на нее
+            case 3: { // Платформа с прыжком
                 float platY = groundY + 60.0f;
-                editorLayer->createObject(1, ccp(currentX, platY), false);
-                editorLayer->createObject(1, ccp(currentX + blockSize, platY), false);
-                editorLayer->createObject(8, ccp(currentX, groundY), false); // Шип под платформой
+                editorLayer->createObject(1, ccp(currentX, platY), true);
+                editorLayer->createObject(1, ccp(currentX + blockSize, platY), true);
+                editorLayer->createObject(8, ccp(currentX, groundY), true);
                 placedObjects += 3;
 
-                float jumpX = currentX - 42.0f;
-                size_t pressFrame = static_cast<size_t>((jumpX / speedUnitsPerSec) * fps);
-                size_t releaseFrame = pressFrame + 20;
+                float jumpX = currentX - 40.0f;
+                int pressFrame = static_cast<int>(jumpX / unitsPerFrame);
+                int releaseFrame = pressFrame + 20;
 
-                macro->addEventDirect(pressFrame, true, false, 1);
-                macro->addEventDirect(releaseFrame, false, false, 1);
+                macro.recordAction(pressFrame, 1, false, true);
+                macro.recordAction(releaseFrame, 1, false, false);
                 currentX += blockSize;
                 break;
             }
         }
     }
 
-    // Завершаем запись и сохраняем макрос
-    macro->stopRecording();
-    std::string savedPath = macro->saveToFile("generated_layout");
+    std::sort(macro.inputs.begin(), macro.inputs.end());
+    std::string savedPath = macro.saveToFile("xdbot_generated");
 
     FLAlertLayer::create(
-        "Лейаут готов!",
+        "Лейаут и XDBot готовы!",
         fmt::format(
-            "Создано объектов: {}\nЗаписано кликов: {}\nФайл макроса сохранен в:\n{}",
+            "Создано объектов: {}\nСгенерировано кликов: {}\nМакрос записан в движок XDBot!",
             placedObjects,
-            macro->getEventCount(),
-            savedPath
+            macro.inputs.size()
         ),
-        "Отлично"
+        "OK"
     )->show();
 
     if (autoReplay) {
-        macro->startPlayback();
+        macro.state = MacroState::Playing;
+        macro.resetPlayback();
+        Notification::create("Бот активирован! Запустите плейтест.", NotificationIcon::Success)->show();
     }
 
     return true;
