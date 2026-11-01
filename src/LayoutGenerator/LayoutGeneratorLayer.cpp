@@ -5,7 +5,7 @@
 #include "../PoolObject/PoolObject.hpp"
 #include "../PlayerObject.cpp"
 #include "../Settings/ObjectSettings.hpp"
-#include "../Macro/MacroManager.hpp"
+#include "../Macro/Macro.hpp"
 
 LayoutGeneratorLayer *LayoutGeneratorLayer::create()
 {
@@ -63,13 +63,26 @@ void LayoutGeneratorLayer::reset()
     m_tapBalance = 3.f; // don't make the player jump straight away
 }
 
+void LayoutGeneratorLayer::sendClick(bool hold)
+{
+    if (auto editor = LevelEditorLayer::get()) {
+        editor->handleButton(hold, 1, false);
+    }
+}
+
 void LayoutGeneratorLayer::buildStart()
 {
     // for parsing guides:
     // use editor->m_levelSettings->m_guidelineString, split on ~0~
     reset();
-    MacroManager::get().clear();
-    MacroManager::get().state = MacroState::Recording;
+    auto& g = Global::get();
+    g.macro.inputs.clear();
+    g.macro.frameFixes.clear();
+    g.macro.framerate = 240.f;
+    g.currentAction = 0;
+    g.previousFrame = 0;
+    g.state = state::recording;
+
     placeCreditText("made with", CCPoint{105.f, 300.f});
     placeCreditText("layout generator", CCPoint{105.f, 285.f});
     LevelEditorLayer::get()->m_editorUI->onPlaytest(nullptr);
@@ -348,7 +361,7 @@ void LayoutGeneratorLayer::update(float dt)
                     (pd->state & PoolState::JUMP_NEEDS_BUFFER && fish->tags & PoolTag::BLOCK) ||
                     pd->player->m_isDashing)
                 {
-                    pd->player->releaseButton(PlayerButton::Jump);
+                    sendClick(false);
                     m_shouldTapTimer = std::max(1, m_shouldTapTimer);
                 }
             }
@@ -508,9 +521,9 @@ void LayoutGeneratorLayer::update(float dt)
             {
                 m_shouldTapTimer = utils::random::generate<int>(2, 6);
                 if (pd->isClicking())
-                    pd->player->releaseButton(PlayerButton::Jump);
+                    sendClick(false);
                 else
-                    pd->player->pushButton(PlayerButton::Jump);
+                    sendClick(true);
             }
         }
         else if (m_shouldTap == PoolTap::TOWARDS_CENTER)
@@ -530,15 +543,15 @@ void LayoutGeneratorLayer::update(float dt)
 
             if (push != pd->isClicking())
                 if (push)
-                    pd->player->pushButton(PlayerButton::Jump);
+                    sendClick(true);
                 else
-                    pd->player->releaseButton(PlayerButton::Jump);
+                    sendClick(false);
         }
         else if ((bool)(m_shouldTap & PoolTap::TAP_OR_HOLD) != pd->isClicking())
         {
             if (m_shouldTap & PoolTap::TAP_OR_HOLD)
             {
-                pd->player->pushButton(PlayerButton::Jump);
+                sendClick(true);
                 m_hasTappedThisGamemode = true;
 
                 // release the button if required
@@ -559,7 +572,7 @@ void LayoutGeneratorLayer::update(float dt)
             }
             else
             {
-                pd->player->releaseButton(PlayerButton::Jump);
+                sendClick(false);
             }
         }
     }
@@ -909,7 +922,10 @@ void LayoutGeneratorLayer::placeFish(PlayerData *pd, const PoolObject *fish, boo
     {
         if (pd->state & PoolState::GAMEMODE_SWING)
             pd->player->flipGravity(!pd->isUpsideDown(), true);
-        pd->player->pushButton(PlayerButton::Jump);
+        if (pd->isClicking()) {
+            sendClick(false);
+        }
+        sendClick(true);
         if (pd->state & PoolState::TAP_FLYING && m_lastPlacedJumpIndicator)
             editor->removeObject(m_lastPlacedJumpIndicator, true);
     }
@@ -1280,20 +1296,24 @@ void LayoutGeneratorLayer::playtestStopped()
 {
     m_isBuilding = false;
 
-    // Save recorded macro after layout generation
-    auto& macro = MacroManager::get();
-    if (!macro.inputs.empty() && macro.isRecording()) {
-        std::sort(macro.inputs.begin(), macro.inputs.end());
+    // Save recorded macro after layout generation (XDBot 1:1)
+    auto& g = Global::get();
+    if (g.state == state::recording && !g.macro.inputs.empty()) {
+        std::sort(g.macro.inputs.begin(), g.macro.inputs.end());
+        g.state = state::none; // Default to OFF so it doesn't force play
+
         std::string levelName = "layout";
         if (auto editor = LevelEditorLayer::get()) {
             if (editor->m_level && !editor->m_level->m_levelName.empty()) {
                 levelName = editor->m_level->m_levelName;
             }
         }
-        std::string savedPath = macro.saveToFile(levelName);
-        macro.state = MacroState::None; // Default to OFF so it doesn't force play
-        macro.resetPlayback();
-        Notification::create(fmt::format("Macro saved ({} clicks)! Bot is OFF.", macro.inputs.size()), NotificationIcon::Success)->show();
+        Macro::save("LayoutGenerator", "Automatically recorded by LayoutGenerator", levelName, true);
+        Macro::resetPlayback();
+        Notification::create(fmt::format("Macro saved: {} inputs (Bot: OFF)", g.macro.inputs.size()), NotificationIcon::Success)->show();
+    } else {
+        g.state = state::none;
+        Macro::resetPlayback();
     }
 
     // add undo steps for creating and selecting the generated objects

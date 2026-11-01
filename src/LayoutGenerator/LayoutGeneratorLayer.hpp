@@ -98,6 +98,8 @@ protected:
 
     void placeLabel(std::string text, CCPoint pos);
 
+    void sendClick(bool hold);
+
     void placeSpikeBoundary(
         bool bottom,
         CCPoint bottomPos,

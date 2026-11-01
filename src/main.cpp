@@ -9,8 +9,35 @@
 
 #include "GameObjectPool/GameObjectPool.hpp"
 #include "Settings/ObjectSettings.hpp"
+#include "Macro/Macro.hpp"
+#include <Geode/modify/PlayLayer.hpp>
 
 using namespace geode::prelude;
+
+class $modify(MyPlayLayer, PlayLayer) {
+    void resetLevel() {
+        PlayLayer::resetLevel();
+
+        auto &g = Global::get();
+        g.currentAction = 0;
+        g.previousFrame = 0;
+
+        if (g.state == state::recording) {
+            g.macro.inputs.clear();
+            g.macro.frameFixes.clear();
+            g.macro.framerate = 240.f;
+            Macro::updateInfo(this);
+        }
+    }
+
+    void onQuit() {
+        auto &g = Global::get();
+        if (g.state == state::recording) {
+            g.state = state::none;
+        }
+        PlayLayer::onQuit();
+    }
+};
 
 $on_mod(Loaded) {
     if (!Mod::get()->registerCustomSettingType("objects", &ObjectSettings::parse)) {

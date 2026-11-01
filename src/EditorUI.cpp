@@ -1,7 +1,7 @@
 #include <Geode/Geode.hpp>
 #include "LayoutGenerator/LayoutGeneratorLayer.hpp"
 #include "LevelEditorLayer.cpp"
-#include "Macro/MacroManager.hpp"
+#include "Macro/Macro.hpp"
 
 using namespace geode::prelude;
 
@@ -15,8 +15,8 @@ class $modify(MyEditorUI, EditorUI)
 
     void onPlaytest(CCObject* sender)
     {
+        Macro::resetPlayback();
         EditorUI::onPlaytest(sender);
-        MacroManager::get().resetPlayback();
     }
 
     bool init(LevelEditorLayer *editorLayer)
@@ -65,6 +65,6 @@ class $modify(MyEditorUI, EditorUI)
     }
 
     void onToggleBot(CCObject*) {
-        MacroManager::get().togglePlaying();
+        Macro::togglePlaying();
     }
 };

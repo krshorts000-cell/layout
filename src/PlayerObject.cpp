@@ -4,7 +4,7 @@
 #include "PlayerData/PlayerData.hpp"
 #include "LevelEditorLayer.cpp"
 #include "LayoutGenerator/LayoutGeneratorLayer.hpp"
-#include "Macro/MacroManager.hpp"
+#include "Macro/Macro.hpp"
 
 using namespace geode::prelude;
 
@@ -15,36 +15,6 @@ class $modify(MyPlayerObject, PlayerObject)
     {
         std::vector<PlayerTrailData> m_queuedTrail;
     };
-
-    void pushButton(PlayerButton btn)
-    {
-        PlayerObject::pushButton(btn);
-
-        if (btn == PlayerButton::Jump) {
-            if (auto editor = static_cast<MyLevelEditorLayer*>(LevelEditorLayer::get())) {
-                auto builder = editor->m_fields->m_builder;
-                if (builder && builder->getIsBuilding()) {
-                    int frame = static_cast<int>(editor->m_gameState.m_currentProgress / 2);
-                    MacroManager::get().recordAction(frame, 1, false, true);
-                }
-            }
-        }
-    }
-
-    void releaseButton(PlayerButton btn)
-    {
-        PlayerObject::releaseButton(btn);
-
-        if (btn == PlayerButton::Jump) {
-            if (auto editor = static_cast<MyLevelEditorLayer*>(LevelEditorLayer::get())) {
-                auto builder = editor->m_fields->m_builder;
-                if (builder && builder->getIsBuilding()) {
-                    int frame = static_cast<int>(editor->m_gameState.m_currentProgress / 2);
-                    MacroManager::get().recordAction(frame, 1, false, false);
-                }
-            }
-        }
-    }
 
     void updateJump(float dt)
     {
