@@ -21,8 +21,8 @@ class $modify(MyPlayerObject, PlayerObject)
         PlayerObject::pushButton(btn);
 
         if (btn == PlayerButton::Jump) {
-            if (auto editor = LevelEditorLayer::get()) {
-                auto builder = typeinfo_cast<LayoutGeneratorLayer*>(editor->getChildByID("builder"_spr));
+            if (auto editor = static_cast<MyLevelEditorLayer*>(LevelEditorLayer::get())) {
+                auto builder = editor->m_fields->m_builder;
                 if (builder && builder->getIsBuilding()) {
                     int frame = static_cast<int>(editor->m_gameState.m_currentProgress / 2);
                     MacroManager::get().recordAction(frame, 1, false, true);
@@ -36,8 +36,8 @@ class $modify(MyPlayerObject, PlayerObject)
         PlayerObject::releaseButton(btn);
 
         if (btn == PlayerButton::Jump) {
-            if (auto editor = LevelEditorLayer::get()) {
-                auto builder = typeinfo_cast<LayoutGeneratorLayer*>(editor->getChildByID("builder"_spr));
+            if (auto editor = static_cast<MyLevelEditorLayer*>(LevelEditorLayer::get())) {
+                auto builder = editor->m_fields->m_builder;
                 if (builder && builder->getIsBuilding()) {
                     int frame = static_cast<int>(editor->m_gameState.m_currentProgress / 2);
                     MacroManager::get().recordAction(frame, 1, false, false);

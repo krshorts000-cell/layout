@@ -1,5 +1,11 @@
 #include <Geode/Geode.hpp>
+
+#if __has_include(<smjs.object-collab/include/object_collab_optional.hpp>)
 #include <smjs.object-collab/include/object_collab_optional.hpp>
+#define HAS_OBJECT_COLLAB 1
+#else
+#define HAS_OBJECT_COLLAB 0
+#endif
 
 #include "GameObjectPool/GameObjectPool.hpp"
 #include "Settings/ObjectSettings.hpp"
@@ -14,6 +20,7 @@ $on_mod(Loaded) {
 
 $on_game(Loaded) {
     std::unordered_map<std::string, uint32_t> customObjects;
+#if HAS_OBJECT_COLLAB
     Result<object_collab::OptionalRegister> result = object_collab::getOptionalRegister();
     if (result) {
         log::info("Found Object Collab");
@@ -21,18 +28,7 @@ $on_game(Loaded) {
             customObjects[info.id] = objectId;
         }
     }
+#endif
     GameObjectPool::generatePool(customObjects);
     ObjectSettingsNode::generateLayout(customObjects);
-
-    // auto levelManager = LocalLevelManager::get();
-    // if (!levelManager) {
-    //     log::error("Failed to get LocalLevelManager instance.");
-    //     return;
-    // }
-
-    // if (levelManager->m_localLevels) {
-    //     auto level = static_cast<GJGameLevel*>(levelManager->m_localLevels->objectAtIndex(0));
-    //     auto scene = LevelEditorLayer::scene(level, false);
-    //     CCDirector::sharedDirector()->pushScene(scene);
-    // }
 };

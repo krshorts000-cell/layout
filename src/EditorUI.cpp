@@ -6,7 +6,7 @@
 using namespace geode::prelude;
 
 #include <Geode/modify/EditorUI.hpp>
-class $modify(EditorUI)
+class $modify(MyEditorUI, EditorUI)
 {
     LayoutGeneratorLayer *getBuilder()
     {
@@ -38,7 +38,7 @@ class $modify(EditorUI)
         auto botButton = CCMenuItemSpriteExtra::create(
             botSprite,
             this,
-            menu_selector(EditorUI::onToggleBot));
+            menu_selector(MyEditorUI::onToggleBot));
         botButton->setID("bot-button"_spr);
 
         // @geode-ignore(unknown-resource)
