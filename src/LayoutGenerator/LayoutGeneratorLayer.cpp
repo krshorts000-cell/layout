@@ -1,5 +1,7 @@
 #include "LayoutGeneratorLayer.hpp"
 #include <Geode/ui/GeodeUI.hpp>
+#include <Geode/binding/GameManager.hpp>
+#include <Geode/binding/PlayerObject.hpp>
 #include "../GameObjectPool/GameObjectPool.hpp"
 #include "../PlayerData/PlayerData.hpp"
 #include "../PoolObject/PoolObject.hpp"
@@ -98,6 +100,8 @@ void LayoutGeneratorLayer::buildStart()
     placeCreditText("layout generator", CCPoint{105.f, 285.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
+        if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
+        if (editor->m_player2) editor->m_player2->m_ignoreDamage = true;
     }
     LevelEditorLayer::get()->m_editorUI->onPlaytest(nullptr);
 }
@@ -1306,6 +1310,15 @@ void LayoutGeneratorLayer::onSettingsButton(CCObject *)
 void LayoutGeneratorLayer::playtestStopped()
 {
     m_isBuilding = false;
+
+    if (auto gm = GameManager::get()) {
+        gm->setGameVariable("0173", false);
+        gm->setGameVariable("0064", false);
+    }
+    if (auto editor = LevelEditorLayer::get()) {
+        if (editor->m_player1) editor->m_player1->m_ignoreDamage = false;
+        if (editor->m_player2) editor->m_player2->m_ignoreDamage = false;
+    }
 
     // Save recorded macro after layout generation (XDBot 1:1)
     auto& g = Global::get();

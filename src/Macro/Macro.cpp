@@ -97,12 +97,24 @@ void Macro::togglePlaying() {
         g.state = state::none;
         resetPlayback();
         if (auto pl = PlayLayer::get()) {
-            if (pl->m_player1) pl->m_player1->releaseAllButtons();
-            if (pl->m_player2) pl->m_player2->releaseAllButtons();
+            if (pl->m_player1) {
+                pl->m_player1->releaseAllButtons();
+                pl->m_player1->m_ignoreDamage = false;
+            }
+            if (pl->m_player2) {
+                pl->m_player2->releaseAllButtons();
+                pl->m_player2->m_ignoreDamage = false;
+            }
         }
         if (auto el = LevelEditorLayer::get()) {
-            if (el->m_player1) el->m_player1->releaseAllButtons();
-            if (el->m_player2) el->m_player2->releaseAllButtons();
+            if (el->m_player1) {
+                el->m_player1->releaseAllButtons();
+                el->m_player1->m_ignoreDamage = false;
+            }
+            if (el->m_player2) {
+                el->m_player2->releaseAllButtons();
+                el->m_player2->m_ignoreDamage = false;
+            }
         }
         Notification::create("Bot: OFF", NotificationIcon::Warning)->show();
     } else {

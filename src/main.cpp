@@ -11,12 +11,37 @@
 #include "Settings/ObjectSettings.hpp"
 #include "Macro/Macro.hpp"
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/binding/GameManager.hpp>
+#include <Geode/binding/PlayerObject.hpp>
 
 using namespace geode::prelude;
 
 class $modify(MyPlayLayer, PlayLayer) {
+    bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
+        if (auto gm = GameManager::get()) {
+            gm->setGameVariable("0173", false);
+            gm->setGameVariable("0064", false);
+        }
+
+        if (!PlayLayer::init(level, useReplay, dontCreateObjects))
+            return false;
+
+        if (m_player1) m_player1->m_ignoreDamage = false;
+        if (m_player2) m_player2->m_ignoreDamage = false;
+
+        return true;
+    }
+
     void resetLevel() {
+        if (auto gm = GameManager::get()) {
+            gm->setGameVariable("0173", false);
+            gm->setGameVariable("0064", false);
+        }
+
         PlayLayer::resetLevel();
+
+        if (m_player1) m_player1->m_ignoreDamage = false;
+        if (m_player2) m_player2->m_ignoreDamage = false;
 
         auto &g = Global::get();
         g.currentAction = 0;
@@ -58,4 +83,9 @@ $on_game(Loaded) {
 #endif
     GameObjectPool::generatePool(customObjects);
     ObjectSettingsNode::generateLayout(customObjects);
+
+    if (auto gm = GameManager::get()) {
+        gm->setGameVariable("0173", false);
+        gm->setGameVariable("0064", false);
+    }
 };

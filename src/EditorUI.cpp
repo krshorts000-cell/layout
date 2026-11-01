@@ -1,4 +1,6 @@
 #include <Geode/Geode.hpp>
+#include <Geode/binding/GameManager.hpp>
+#include <Geode/binding/PlayerObject.hpp>
 #include "LayoutGenerator/LayoutGeneratorLayer.hpp"
 #include "LevelEditorLayer.cpp"
 #include "Macro/Macro.hpp"
@@ -16,6 +18,20 @@ class $modify(MyEditorUI, EditorUI)
     void onPlaytest(CCObject* sender)
     {
         auto &g = Global::get();
+        auto builder = getBuilder();
+        bool isBuilding = builder && builder->getIsBuilding();
+
+        if (!isBuilding) {
+            if (auto gm = GameManager::get()) {
+                gm->setGameVariable("0173", false);
+                gm->setGameVariable("0064", false);
+            }
+            if (m_editorLayer) {
+                if (m_editorLayer->m_player1) m_editorLayer->m_player1->m_ignoreDamage = false;
+                if (m_editorLayer->m_player2) m_editorLayer->m_player2->m_ignoreDamage = false;
+            }
+        }
+
         if (m_editorLayer && m_editorLayer->m_playbackMode == PlaybackMode::Not) {
             g.currentAction = 0;
             g.previousFrame = 0;
@@ -25,6 +41,11 @@ class $modify(MyEditorUI, EditorUI)
             }
         }
         EditorUI::onPlaytest(sender);
+
+        if (!isBuilding && m_editorLayer) {
+            if (m_editorLayer->m_player1) m_editorLayer->m_player1->m_ignoreDamage = false;
+            if (m_editorLayer->m_player2) m_editorLayer->m_player2->m_ignoreDamage = false;
+        }
     }
 
     bool init(LevelEditorLayer *editorLayer)
