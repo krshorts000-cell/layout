@@ -65,8 +65,19 @@ void LayoutGeneratorLayer::reset()
 
 void LayoutGeneratorLayer::sendClick(bool hold)
 {
-    if (auto editor = LevelEditorLayer::get()) {
-        editor->handleButton(hold, 1, false);
+    auto editor = LevelEditorLayer::get();
+    if (!editor || !editor->m_player1) return;
+
+    if (hold) {
+        editor->m_player1->pushButton(PlayerButton::Jump);
+    } else {
+        editor->m_player1->releaseButton(PlayerButton::Jump);
+    }
+
+    auto& g = Global::get();
+    if (g.state == state::recording) {
+        int frame = Global::getCurrentFrame(true);
+        Macro::recordAction(frame, 1, false, hold);
     }
 }
 
@@ -85,6 +96,9 @@ void LayoutGeneratorLayer::buildStart()
 
     placeCreditText("made with", CCPoint{105.f, 300.f});
     placeCreditText("layout generator", CCPoint{105.f, 285.f});
+    if (auto editor = LevelEditorLayer::get()) {
+        editor->m_gameState.m_currentProgress = 0;
+    }
     LevelEditorLayer::get()->m_editorUI->onPlaytest(nullptr);
 }
 
@@ -922,9 +936,6 @@ void LayoutGeneratorLayer::placeFish(PlayerData *pd, const PoolObject *fish, boo
     {
         if (pd->state & PoolState::GAMEMODE_SWING)
             pd->player->flipGravity(!pd->isUpsideDown(), true);
-        if (pd->isClicking()) {
-            sendClick(false);
-        }
         sendClick(true);
         if (pd->state & PoolState::TAP_FLYING && m_lastPlacedJumpIndicator)
             editor->removeObject(m_lastPlacedJumpIndicator, true);
@@ -1299,7 +1310,7 @@ void LayoutGeneratorLayer::playtestStopped()
     // Save recorded macro after layout generation (XDBot 1:1)
     auto& g = Global::get();
     if (g.state == state::recording && !g.macro.inputs.empty()) {
-        std::sort(g.macro.inputs.begin(), g.macro.inputs.end());
+        std::stable_sort(g.macro.inputs.begin(), g.macro.inputs.end());
         g.state = state::none; // Default to OFF so it doesn't force play
 
         std::string levelName = "layout";

@@ -27,6 +27,14 @@ struct input : gdr::Input {
                button == other.button &&
                down == other.down;
     }
+
+    bool operator<(const input& other) const {
+        if (frame != other.frame)
+            return frame < other.frame;
+        if (down != other.down)
+            return !down && other.down; // false before true on same frame
+        return false;
+    }
 };
 
 struct Macro : gdr::Replay<Macro, input> {

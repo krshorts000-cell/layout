@@ -33,7 +33,7 @@ class $modify(BGLHook, GJBaseGameLayer) {
                 g.currentAction = 0;
             }
             g.previousFrame = frame;
-            handlePlaying(frame);
+            handlePlaying(frame, true);
             return;
         }
 
@@ -49,10 +49,10 @@ class $modify(BGLHook, GJBaseGameLayer) {
         g.previousFrame = frame;
 
         if (g.state == state::playing)
-            handlePlaying(frame);
+            handlePlaying(frame, false);
     }
 
-    void handlePlaying(int frame) {
+    void handlePlaying(int frame, bool isEditor) {
         auto &g = Global::get();
         if (m_levelEndAnimationStarted)
             return;
@@ -73,6 +73,12 @@ class $modify(BGLHook, GJBaseGameLayer) {
                 input.player2 = !input.player2;
 
             GJBaseGameLayer::handleButton(input.down, input.button, input.player2);
+
+            if (isEditor && m_player1 && !input.player2) {
+                if (input.down) m_player1->pushButton((PlayerButton)input.button);
+                else m_player1->releaseButton((PlayerButton)input.button);
+            }
+
             g.currentAction++;
         }
 

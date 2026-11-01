@@ -18,7 +18,7 @@ int Global::getCurrentFrame(bool editor) {
         if (!editorLayer || editorLayer->m_playbackMode != PlaybackMode::Playing)
             return 0;
 
-        frame = static_cast<int>(editorLayer->m_gameState.m_currentProgress / 2);
+        frame = static_cast<int>(editorLayer->m_gameState.m_currentProgress / 2) + 1;
     } else {
         if (!g.macro.xdBotMacro && g.state == state::playing) {
             frame = pl->m_gameState.m_currentProgress;
@@ -110,7 +110,7 @@ void Macro::togglePlaying() {
             Notification::create("No macro! Generate layout first.", NotificationIcon::Error)->show();
             return;
         }
-        std::sort(g.macro.inputs.begin(), g.macro.inputs.end());
+        std::stable_sort(g.macro.inputs.begin(), g.macro.inputs.end());
         g.state = state::playing;
         resetPlayback();
         Notification::create(fmt::format("Bot: ON ({} inputs)", g.macro.inputs.size()), NotificationIcon::Success)->show();
@@ -122,7 +122,7 @@ int Macro::save(std::string author, std::string desc, std::string levelName, boo
     if (g.macro.inputs.empty())
         return 31;
 
-    std::sort(g.macro.inputs.begin(), g.macro.inputs.end());
+    std::stable_sort(g.macro.inputs.begin(), g.macro.inputs.end());
 
     std::string safeName = levelName.empty() ? "layout" : levelName;
     for (char& c : safeName) {

@@ -15,7 +15,15 @@ class $modify(MyEditorUI, EditorUI)
 
     void onPlaytest(CCObject* sender)
     {
-        Macro::resetPlayback();
+        auto &g = Global::get();
+        if (m_editorLayer && m_editorLayer->m_playbackMode == PlaybackMode::Not) {
+            g.currentAction = 0;
+            g.previousFrame = 0;
+            Macro::resetPlayback();
+            if (g.state == state::playing || g.state == state::recording) {
+                m_editorLayer->m_gameState.m_currentProgress = 0;
+            }
+        }
         EditorUI::onPlaytest(sender);
     }
 
