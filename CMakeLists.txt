@@ -7,7 +7,10 @@ project(LayoutMacroBot VERSION 1.0.0 LANGUAGES CXX)
 
 find_package(Geode REQUIRED)
 
-# Рекурсивный поиск всех исходных файлов
+if (MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 setup_geode_mod(LayoutMacroBot SOURCES ${SOURCES})

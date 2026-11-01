@@ -56,8 +56,8 @@ class $modify(MyEditorUI, EditorUI) {
             }
             macro->startPlayback();
             // Запускаем тест уровня в редакторе
-            if (m_editorLayer) {
-                m_editorLayer->onPlaytest();
+            if (m_editorLayer && m_editorLayer->m_editorUI) {
+                m_editorLayer->m_editorUI->onPlaytest(nullptr);
             }
         }
     }

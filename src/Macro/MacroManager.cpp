@@ -19,7 +19,6 @@ void MacroManager::startRecording(float fps) {
 void MacroManager::stopRecording() {
     if (m_state == MacroState::Recording) {
         m_state = MacroState::Idle;
-        // Сортируем события по кадрам для стабильности
         std::sort(m_events.begin(), m_events.end(), [](const MacroEvent& a, const MacroEvent& b) {
             return a.frame < b.frame;
         });
@@ -96,7 +95,6 @@ void MacroManager::update(float dt, PlayerObject* player1, PlayerObject* player2
             m_playbackIndex++;
         }
 
-        // Если дошли до конца макроса
         if (m_playbackIndex >= m_events.size()) {
             stopPlayback();
             Notification::create("Макрос успешно выполнен!", NotificationIcon::Success)->show();
@@ -121,25 +119,23 @@ std::string MacroManager::saveToFile(const std::string& baseName) {
         std::chrono::system_clock::now().time_since_epoch()).count();
     auto filePath = saveDir / fmt::format("{}_{}.json", baseName, timestamp);
 
-    matjson::Value root = matjson::Object();
-    root["fps"] = m_fps;
-    root["generator"] = "LayoutMacroBot";
-    root["version"] = 1.0;
-    root["total_inputs"] = static_cast<int>(m_events.size());
-
-    matjson::Array inputsArray;
-    for (const auto& ev : m_events) {
-        matjson::Value obj = matjson::Object();
-        obj["frame"] = static_cast<int>(ev.frame);
-        obj["down"] = ev.isDown;
-        obj["player2"] = ev.isPlayer2;
-        obj["btn"] = ev.button;
-        inputsArray.push_back(obj);
-    }
-    root["inputs"] = inputsArray;
-
     std::ofstream file(filePath);
-    file << root.dump(matjson::NO_INDENTATION);
+    file << "{\n";
+    file << "  \"fps\": " << m_fps << ",\n";
+    file << "  \"generator\": \"LayoutMacroBot\",\n";
+    file << "  \"total_inputs\": " << m_events.size() << ",\n";
+    file << "  \"inputs\": [\n";
+    for (size_t i = 0; i < m_events.size(); ++i) {
+        const auto& ev = m_events[i];
+        file << "    {\"frame\": " << ev.frame 
+             << ", \"down\": " << (ev.isDown ? "true" : "false")
+             << ", \"player2\": " << (ev.isPlayer2 ? "true" : "false")
+             << ", \"btn\": " << ev.button << "}";
+        if (i + 1 < m_events.size()) file << ",";
+        file << "\n";
+    }
+    file << "  ]\n";
+    file << "}\n";
     file.close();
 
     log::info("[MacroManager] Макрос сохранен в {}", filePath.string());
@@ -164,7 +160,7 @@ bool MacroManager::loadFromFile(const std::filesystem::path& path) {
     }
 
     if (root.contains("inputs") && root["inputs"].isArray()) {
-        for (const auto& item : root["inputs"].asArray().unwrap()) {
+        for (auto& item : root["inputs"]) {
             MacroEvent ev;
             ev.frame = static_cast<size_t>(item["frame"].asInt().unwrapOr(0));
             ev.isDown = item["down"].asBool().unwrapOr(false);
