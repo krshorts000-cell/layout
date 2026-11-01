@@ -33,6 +33,7 @@ public:
 
     MacroState state = MacroState::None;
     size_t currentAction = 0;
+    int previousFrame = 0;
     std::vector<MacroInput> inputs;
     bool isSimulating = false;
 
@@ -41,11 +42,17 @@ public:
 
     void recordAction(int frame, int button, bool player2, bool down) {
         inputs.push_back({frame, button, player2, down});
-        log::debug("[XDBot] Записано: кадр={}, кнопка={}, зажата={}", frame, button, down);
+        log::debug("[XDBot] Recorded: frame={}, btn={}, down={}", frame, button, down);
     }
 
     void handlePlaying(GJBaseGameLayer* layer, int frame) {
         if (!layer) return;
+
+        // Auto-detect level/playtest restart or loop
+        if (frame < previousFrame) {
+            currentAction = 0;
+        }
+        previousFrame = frame;
 
         isSimulating = true;
         while (currentAction < inputs.size() && frame >= inputs[currentAction].frame) {
@@ -58,12 +65,14 @@ public:
 
     void resetPlayback() {
         currentAction = 0;
+        previousFrame = 0;
         isSimulating = false;
     }
 
     void clear() {
         inputs.clear();
         currentAction = 0;
+        previousFrame = 0;
         state = MacroState::None;
         isSimulating = false;
     }
@@ -72,16 +81,16 @@ public:
         if (state == MacroState::Playing) {
             state = MacroState::None;
             resetPlayback();
-            Notification::create("Бот: ВЫКЛ", NotificationIcon::Warning)->show();
+            Notification::create("Bot: OFF", NotificationIcon::Warning)->show();
         } else {
             if (inputs.empty()) {
-                Notification::create("Нет макроса! Нажмите Gen или Rec.", NotificationIcon::Error)->show();
+                Notification::create("No macro loaded! Click Gen or Rec.", NotificationIcon::Error)->show();
                 return;
             }
             std::sort(inputs.begin(), inputs.end());
             state = MacroState::Playing;
             resetPlayback();
-            Notification::create(fmt::format("Бот: ВКЛ (XDBot, кликов: {})", inputs.size()), NotificationIcon::Success)->show();
+            Notification::create(fmt::format("Bot: ON (XDBot, {} inputs)", inputs.size()), NotificationIcon::Success)->show();
         }
     }
 
@@ -89,12 +98,12 @@ public:
         if (state == MacroState::Recording) {
             state = MacroState::None;
             std::sort(inputs.begin(), inputs.end());
-            Notification::create(fmt::format("Запись завершена (кликов: {})", inputs.size()), NotificationIcon::Success)->show();
+            Notification::create(fmt::format("Recording saved ({} inputs)", inputs.size()), NotificationIcon::Success)->show();
             saveToFile("recorded_macro");
         } else {
             clear();
             state = MacroState::Recording;
-            Notification::create("Запись макроса началась! Играйте уровень.", NotificationIcon::Info)->show();
+            Notification::create("Recording started! Play the level.", NotificationIcon::Info)->show();
         }
     }
 
