@@ -1,0 +1,56 @@
+{
+  "geode": "4.1.2",
+  "gd": {
+    "win": "2.2074",
+    "android": "2.2074",
+    "mac": "2.2074"
+  },
+  "id": "creator.layout_macro_bot",
+  "name": "Layout & Auto-Macro Bot",
+  "version": "v1.0.0",
+  "developer": "CreativeDev",
+  "description": "Процедурный генератор лейаутов для Geometry Dash с автоматической записью макроса и встроенным ботом воспроизведения.",
+  "dependencies": {
+    "geode.node-ids": ">=1.0.0"
+  },
+  "settings": {
+    "bpm": {
+      "name": "BPM песни",
+      "description": "Темп трека для точной синхронизации кликов и платформ",
+      "type": "float",
+      "default": 128.0,
+      "min": 40.0,
+      "max": 300.0,
+      "control": {
+        "arrows": true,
+        "arrow-step": 1.0,
+        "slider": true
+      }
+    },
+    "obstacle-count": {
+      "name": "Количество препятствий",
+      "description": "Длина генерируемого участка лейаута",
+      "type": "int",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "control": {
+        "arrows": true,
+        "arrow-step": 5,
+        "slider": true
+      }
+    },
+    "auto-replay": {
+      "name": "Авто-проигрывание после генерации",
+      "description": "Сразу запускать бота для демонстрации прохождения созданного участка",
+      "type": "bool",
+      "default": true
+    },
+    "include-orbs": {
+      "name": "Использовать сферы",
+      "description": "Добавлять в генерацию прыжковые сферы (желтые, розовые)",
+      "type": "bool",
+      "default": true
+    }
+  }
+}
