@@ -67,11 +67,6 @@ class $modify(MyPlayLayerHook, PlayLayer) {
 };
 
 class $modify(MyEditorLayerHook, LevelEditorLayer) {
-    void onPlaytest(CCObject* sender) {
-        LevelEditorLayer::onPlaytest(sender);
-        MacroManager::get().resetPlayback();
-    }
-
     void onStopPlaytest() {
         LevelEditorLayer::onStopPlaytest();
         MacroManager::get().resetPlayback();

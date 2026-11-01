@@ -6,6 +6,11 @@
 using namespace geode::prelude;
 
 class $modify(MyEditorUI, EditorUI) {
+    void onPlaytest(CCObject* sender) {
+        EditorUI::onPlaytest(sender);
+        MacroManager::get().resetPlayback();
+    }
+
     bool init(LevelEditorLayer* editorLayer) {
         if (!EditorUI::init(editorLayer)) return false;
 
