@@ -14,7 +14,7 @@ std::string MacroManager::saveToFile(const std::string& baseName) {
     std::ofstream file(filePath);
     file << "{\n";
     file << "  \"fps\": 240.0,\n";
-    file << "  \"bot\": \"XDBot-Integrated\",\n";
+    file << "  \"bot\": \"LayoutGenerator-Integrated\",\n";
     file << "  \"total_inputs\": " << inputs.size() << ",\n";
     file << "  \"inputs\": [\n";
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -30,7 +30,7 @@ std::string MacroManager::saveToFile(const std::string& baseName) {
     file << "}\n";
     file.close();
 
-    log::info("[XDBot] Макрос сохранен в {}", filePath.string());
+    log::info("[LayoutMacro] Saved macro to {}", filePath.string());
     return filePath.string();
 }
 

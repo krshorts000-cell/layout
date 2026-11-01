@@ -42,13 +42,13 @@ public:
 
     void recordAction(int frame, int button, bool player2, bool down) {
         inputs.push_back({frame, button, player2, down});
-        log::debug("[XDBot] Recorded: frame={}, btn={}, down={}", frame, button, down);
+        log::debug("[LayoutMacro] frame={}, btn={}, down={}", frame, button, down);
     }
 
     void handlePlaying(GJBaseGameLayer* layer, int frame) {
         if (!layer) return;
 
-        // Auto-detect level/playtest restart or loop
+        // Auto-detect restart / loop
         if (frame < previousFrame) {
             currentAction = 0;
         }
@@ -84,29 +84,16 @@ public:
             Notification::create("Bot: OFF", NotificationIcon::Warning)->show();
         } else {
             if (inputs.empty()) {
-                Notification::create("No macro loaded! Click Gen or Rec.", NotificationIcon::Error)->show();
+                Notification::create("No macro! Generate layout first.", NotificationIcon::Error)->show();
                 return;
             }
             std::sort(inputs.begin(), inputs.end());
             state = MacroState::Playing;
             resetPlayback();
-            Notification::create(fmt::format("Bot: ON (XDBot, {} inputs)", inputs.size()), NotificationIcon::Success)->show();
+            Notification::create(fmt::format("Bot: ON ({} inputs)", inputs.size()), NotificationIcon::Success)->show();
         }
     }
 
-    void toggleRecording() {
-        if (state == MacroState::Recording) {
-            state = MacroState::None;
-            std::sort(inputs.begin(), inputs.end());
-            Notification::create(fmt::format("Recording saved ({} inputs)", inputs.size()), NotificationIcon::Success)->show();
-            saveToFile("recorded_macro");
-        } else {
-            clear();
-            state = MacroState::Recording;
-            Notification::create("Recording started! Play the level.", NotificationIcon::Info)->show();
-        }
-    }
-
-    std::string saveToFile(const std::string& baseName = "xdbot_macro");
+    std::string saveToFile(const std::string& baseName = "layout_macro");
     bool loadFromFile(const std::filesystem::path& path);
 };

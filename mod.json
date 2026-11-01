@@ -1,57 +1,148 @@
 {
-  "geode": "5.8.2",
-  "gd": {
-    "win": "2.2081",
-    "android": "2.2081",
-    "mac": "2.2081",
-    "ios": "2.2081"
-  },
-  "id": "creator.layout_macro_bot",
-  "name": "Layout & Auto-Macro Bot",
-  "version": "v1.0.0",
-  "developer": "CreativeDev",
-  "description": "Процедурный генератор лейаутов для Geometry Dash с автоматической записью макроса и встроенным ботом воспроизведения.",
-  "dependencies": {
-    "geode.node-ids": ">=v1.23.3"
-  },
-  "settings": {
-    "bpm": {
-      "name": "BPM песни",
-      "description": "Темп трека для точной синхронизации кликов и платформ",
-      "type": "float",
-      "default": 128.0,
-      "min": 40.0,
-      "max": 300.0,
-      "control": {
-        "arrows": true,
-        "arrow-step": 1.0,
-        "slider": true
-      }
-    },
-    "obstacle-count": {
-      "name": "Количество препятствий",
-      "description": "Длина генерируемого участка лейаута",
-      "type": "int",
-      "default": 30,
-      "min": 5,
-      "max": 200,
-      "control": {
-        "arrows": true,
-        "arrow-step": 5,
-        "slider": true
-      }
-    },
-    "auto-replay": {
-      "name": "Авто-проигрывание после генерации",
-      "description": "Сразу запускать бота для демонстрации прохождения созданного участка",
-      "type": "bool",
-      "default": true
-    },
-    "include-orbs": {
-      "name": "Использовать сферы",
-      "description": "Добавлять в генерацию прыжковые сферы (желтые, розовые)",
-      "type": "bool",
-      "default": true
-    }
-  }
+	"geode": "5.8.2",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "profdragon.layoutgenerator",
+	"name": "Layout Generator",
+	"version": "v1.5.0",
+	"developer": "ProfDragon",
+	"description": "Procedurally generate Geometry Dash layouts",
+	"dependencies": {
+		"geode.node-ids": ">=v1.23.3",
+		"smjs.object-collab": {
+			"version": ">=0.5.4-beta.1",
+			"required": false
+		}
+	},
+	"issues": {
+		"info": "Message me on Discord @professordragon, or sumbit an issue on GitHub.",
+		"url": "https://github.com/ProfessorDragon/LayoutGenerator/issues"
+	},
+	"links": {
+		"source": "https://github.com/ProfessorDragon/LayoutGenerator"
+	},
+	"resources": {
+		"spritesheets": {
+			"UISheet": [
+				"resources/*.png"
+			]
+		}
+	},
+	"settings": {
+		"title-general": {
+			"name": "General",
+			"type": "title"
+		},
+		"bpm": {
+			"name": "BPM",
+			"description": "Enter the song's BPM to make gameplay sync.",
+			"type": "float",
+			"default": 128.0,
+			"min": 1.0,
+			"max": 3600.0,
+			"control": {
+				"arrows": true,
+				"arrow-step": 1.0,
+				"slider": false
+			}
+		},
+		"use-player-clicks": {
+			"name": "Use player clicks",
+			"description": "If enabled, the gameplay will form around your clicks. If not, clicks will be inserted at random.",
+			"type": "bool",
+			"default": false
+		},
+		"title-generation": {
+			"name": "What to spawn",
+			"type": "title"
+		},
+		"objects": {
+			"name": "Objects",
+			"type": "custom:objects",
+			"default": [
+				10,
+				11,
+				12,
+				13,
+				35,
+				36,
+				47,
+				67,
+				84,
+				99,
+				101,
+				111,
+				140,
+				141,
+				200,
+				201,
+				202,
+				203,
+				660,
+				745,
+				1022,
+				1330,
+				1331,
+				1332,
+				1333,
+				1334,
+				1704,
+				1751,
+				1933,
+				3004,
+				3005
+			]
+		},
+		"spike-boundary-enabled": {
+			"name": "Spikes",
+			"type": "bool",
+			"default": true
+		},
+		"spike-margin": {
+			"name": "Spike margin",
+			"description": "Controls how close the spikes are to the player. Lower values make the gameplay less forgiving.",
+			"enable-if": "spike-boundary-enabled",
+			"type": "float",
+			"default": 50.0,
+			"min": 0.0,
+			"max": 150.0,
+			"control": {
+				"arrows": true,
+				"arrow-step": 10.0,
+				"slider": false
+			}
+		},
+		"jump-indicators": {
+			"name": "Jump indicators",
+			"type": "bool",
+			"default": true
+		},
+		"camera-free-mode": {
+			"name": "Free camera",
+			"description": "Enables free mode for gamemode portals.",
+			"type": "bool",
+			"default": false
+		},
+		"experimental-gameplay": {
+			"name": "Experimental gameplay",
+			"description": "Adds experimental variations to existing gameplay elements, such as late ring timings and jump pads while flying.",
+			"type": "bool",
+			"default": false
+		},
+		"debug-trail": {
+			"name": "Debug trail",
+			"description": "Leaves an object trail behind the player while generating. An X indicates the jump button is pressed.",
+			"type": "bool",
+			"default": false
+		}
+	},
+	"tags": [
+		"editor",
+		"utility",
+		"offline"
+	]
 }

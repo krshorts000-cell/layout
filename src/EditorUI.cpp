@@ -1,0 +1,70 @@
+#include <Geode/Geode.hpp>
+#include "LayoutGenerator/LayoutGeneratorLayer.hpp"
+#include "LevelEditorLayer.cpp"
+#include "Macro/MacroManager.hpp"
+
+using namespace geode::prelude;
+
+#include <Geode/modify/EditorUI.hpp>
+class $modify(EditorUI)
+{
+    LayoutGeneratorLayer *getBuilder()
+    {
+        return static_cast<MyLevelEditorLayer *>(m_editorLayer)->m_fields->m_builder;
+    }
+
+    void onPlaytest(CCObject* sender)
+    {
+        EditorUI::onPlaytest(sender);
+        MacroManager::get().resetPlayback();
+    }
+
+    bool init(LevelEditorLayer *editorLayer)
+    {
+        if (!EditorUI::init(editorLayer))
+            return false;
+
+        auto buildSprite = ButtonSprite::createWithSpriteFrameName("button.png"_spr);
+        buildSprite->setScale(0.83f);
+        auto buildButton = CCMenuItemSpriteExtra::create(
+            buildSprite,
+            getBuilder(),
+            menu_selector(LayoutGeneratorLayer::onBuildButton));
+        buildButton->setID("build-button"_spr);
+
+        // Bot button: sleek toggle button in playback-menu
+        auto botSprite = ButtonSprite::create("Bot", "bigFont.fnt", "GJ_button_02.png", 0.6f);
+        botSprite->setScale(0.83f);
+        auto botButton = CCMenuItemSpriteExtra::create(
+            botSprite,
+            this,
+            menu_selector(EditorUI::onToggleBot));
+        botButton->setID("bot-button"_spr);
+
+        // @geode-ignore(unknown-resource)
+        auto settingsSprite = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 1.f, CircleBaseColor::DarkAqua);
+        settingsSprite->setScale(0.83f);
+        auto settingsButton = CCMenuItemSpriteExtra::create(
+            settingsSprite,
+            getBuilder(),
+            menu_selector(LayoutGeneratorLayer::onSettingsButton));
+        settingsButton->setID("settings-button"_spr);
+
+        auto menu = getChildByID("playback-menu");
+        if (menu) {
+            menu->addChild(buildButton);
+            menu->addChild(botButton);
+            menu->addChild(settingsButton);
+            m_uiItems->addObject(buildButton);
+            m_uiItems->addObject(botButton);
+            m_uiItems->addObject(settingsButton);
+            menu->updateLayout();
+        }
+
+        return true;
+    }
+
+    void onToggleBot(CCObject*) {
+        MacroManager::get().togglePlaying();
+    }
+};

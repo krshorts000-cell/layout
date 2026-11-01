@@ -1,9 +1,10 @@
 name: Build Geode Mod
 
 on:
-  push:
-    branches: ["**"]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -24,6 +25,7 @@ jobs:
         uses: geode-sdk/build-geode-mod@main
         with:
           combine: true
+          target: ${{ matrix.config.target }}
 
   package:
     name: Package builds
