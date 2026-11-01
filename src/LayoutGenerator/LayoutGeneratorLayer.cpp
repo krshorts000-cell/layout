@@ -1284,10 +1284,16 @@ void LayoutGeneratorLayer::playtestStopped()
     auto& macro = MacroManager::get();
     if (!macro.inputs.empty()) {
         std::sort(macro.inputs.begin(), macro.inputs.end());
-        macro.saveToFile("layout_macro");
+        std::string levelName = "layout";
+        if (auto editor = LevelEditorLayer::get()) {
+            if (editor->m_level && !editor->m_level->m_levelName.empty()) {
+                levelName = editor->m_level->m_levelName;
+            }
+        }
+        std::string savedPath = macro.saveToFile(levelName);
         macro.state = MacroState::Playing;
         macro.resetPlayback();
-        Notification::create(fmt::format("Macro recorded ({} clicks)! Bot ready.", macro.inputs.size()), NotificationIcon::Success)->show();
+        Notification::create(fmt::format("Macro saved to macros/ ({} clicks)! Bot ready.", macro.inputs.size()), NotificationIcon::Success)->show();
     }
 
     // add undo steps for creating and selecting the generated objects
