@@ -36,5 +36,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: creator.layout_macro_bot
+          name: Build Output
           path: ${{ steps.build.outputs.build-output }}
