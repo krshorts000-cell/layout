@@ -16,14 +16,12 @@ std::string MacroManager::saveToFile(const std::string& baseName) {
     auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
 
-    // 1. Primary: Save directly in Geometry Dash folder: {gd_dir}/macros/ (XDBot system)
-    std::error_code ec;
-    auto gdMacrosDir = geode::dirs::getGameDir() / "macros";
-    std::filesystem::create_directories(gdMacrosDir, ec);
-
-    // 2. Secondary / Backup: Mod save folder
-    auto modMacrosDir = Mod::get()->getSaveDir() / "macros";
-    std::filesystem::create_directories(modMacrosDir, ec);
+    // 1. Target macro directories (Steam library, game root dir, and mod save dir)
+    std::vector<std::filesystem::path> targetDirs = {
+        std::filesystem::path("D:/SteamLibrary/steamapps/common/Geometry Dash/macros"),
+        geode::dirs::getGameDir() / "macros",
+        Mod::get()->getSaveDir() / "macros"
+    };
 
     float duration = static_cast<float>(inputs.back().frame) / 240.f;
 
@@ -63,32 +61,34 @@ std::string MacroManager::saveToFile(const std::string& baseName) {
     ss << "}\n";
     std::string jsonContent = ss.str();
 
-    // Save in {gd_dir}/macros with both .gdr.json (XDBot standard) and .json
-    auto gdrFilePath = gdMacrosDir / fmt::format("{}_{}.gdr.json", safeName, timestamp);
-    auto jsonFilePath = gdMacrosDir / fmt::format("{}_{}.json", safeName, timestamp);
+    std::string primarySavedPath = "";
 
-    std::ofstream fileGdr(gdrFilePath);
-    if (fileGdr.is_open()) {
-        fileGdr << jsonContent;
-        fileGdr.close();
+    // Save to all target locations
+    for (const auto& dir : targetDirs) {
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+
+        auto gdrPath = dir / fmt::format("{}_{}.gdr.json", safeName, timestamp);
+        auto jsonPath = dir / fmt::format("{}_{}.json", safeName, timestamp);
+
+        std::ofstream fileGdr(gdrPath);
+        if (fileGdr.is_open()) {
+            fileGdr << jsonContent;
+            fileGdr.close();
+            if (primarySavedPath.empty()) {
+                primarySavedPath = gdrPath.string();
+            }
+        }
+
+        std::ofstream fileJson(jsonPath);
+        if (fileJson.is_open()) {
+            fileJson << jsonContent;
+            fileJson.close();
+        }
     }
 
-    std::ofstream fileJson(jsonFilePath);
-    if (fileJson.is_open()) {
-        fileJson << jsonContent;
-        fileJson.close();
-    }
-
-    // Also write to mod directory as fallback
-    auto modFilePath = modMacrosDir / fmt::format("{}_{}.gdr.json", safeName, timestamp);
-    std::ofstream fileMod(modFilePath);
-    if (fileMod.is_open()) {
-        fileMod << jsonContent;
-        fileMod.close();
-    }
-
-    log::info("[LayoutMacro] Saved macro in XDBot format to {}", gdrFilePath.string());
-    return gdrFilePath.string();
+    log::info("[LayoutMacro] Saved macro in XDBot format to {}", primarySavedPath);
+    return primarySavedPath;
 }
 
 bool MacroManager::loadFromFile(const std::filesystem::path& path) {
