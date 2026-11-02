@@ -132,4 +132,6 @@ public:
     void onSettingsButton(CCObject *);
 
     void playtestStopped();
+
+    void onExit() override;
 };

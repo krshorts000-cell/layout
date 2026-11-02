@@ -1367,3 +1367,9 @@ void LayoutGeneratorLayer::playtestStopped()
     // just to be safe
     m_placedObjectUniqueIds.clear();
 }
+
+void LayoutGeneratorLayer::onExit()
+{
+    playtestStopped();
+    CCLayer::onExit();
+}
