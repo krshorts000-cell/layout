@@ -1178,12 +1178,12 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
             if (isCeiling)
             {
                 slope->setFlipY(true);
-                slope->setFlipX(isRising);
+                slope->setFlipX(!isRising);
             }
             else
             {
                 slope->setFlipY(false);
-                slope->setFlipX(!isRising);
+                slope->setFlipX(isRising);
             }
         }
     }
