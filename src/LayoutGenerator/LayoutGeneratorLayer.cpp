@@ -433,6 +433,9 @@ void LayoutGeneratorLayer::update(float dt)
             pd->pos.x + pd->velScaled.x,
             pd->pos.y + (pd->state & PoolState::GROUNDED ? 0.f : pd->velScaled.y)
         };
+        // IMPORTANT: fromPlayerData leaves boundsCeil/boundsFloor at 0; set them from current generator bounds
+        projectedTrail.boundsCeil = m_boundsCeil;
+        projectedTrail.boundsFloor = m_boundsFloor;
         PlayerTrailData leftTrail = projectedTrail;
         PlayerTrailData midTrail = projectedTrail;
         bool closeTheSpiderGap = isFramePerfect ? true : false;
