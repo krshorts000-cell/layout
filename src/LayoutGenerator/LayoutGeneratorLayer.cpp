@@ -361,7 +361,7 @@ void LayoutGeneratorLayer::update(float dt)
                     if (pd->state & PoolState::GROUNDED)
                     {
                         log::debug("{} {} GROUNDED PLACEAGAIN", m_fishId, fish->name);
-                        CCPoint pos = pd->pos;
+                        CCPoint pos = CCPoint{ pd->pos.x + pd->velScaled.x, pd->pos.y };
                         pos.y -= pd->getRectSize().height / 2.f * pd->getSign();
                         pos.y -= 15.f * pd->getSign();
                         if (!isOutOfBounds(pos.y, 30.f, pd))
@@ -414,23 +414,34 @@ void LayoutGeneratorLayer::update(float dt)
         // also make it a bit wider according to the spikeMargin
         const CCSize spikeSize{8.f + spikeMargin / 2.f, 14.f};
 
-        // 30 units is the largest width that the player hitbox can ever be
-        const float spikeScanRight = pd->pos.x - (30.f - playerSize.width) / 2.f;
-
-        // place the right of the spike on the left of the player
-        const float spikeX = spikeScanRight - (playerSize.width + spikeSize.width) / 2.f;
-
-        // scan until the right of the player is past the left of the spike
+        // Overtake player by 1 frame: place spikes 1 frame ahead (+ pd->velScaled.x)
+        const float spikeX = pd->pos.x + pd->velScaled.x;
+        const float spikeScanRight = spikeX + (playerSize.width + spikeSize.width) / 2.f;
         const float spikeScanLeft = spikeX - (playerSize.width + spikeSize.width) / 2.f;
 
         bool spikeBottom = false;
         bool spikeTop = false;
-        float yMin = FLT_MAX;
-        float yMax = -FLT_MAX;
-        PlayerTrailData leftTrail{};
-        PlayerTrailData midTrail{};
+
+        PlayerTrailData projectedTrail = PlayerTrailData::fromPlayerData(*pd);
+        projectedTrail.pos = CCPoint{
+            pd->pos.x + pd->velScaled.x,
+            pd->pos.y + (pd->state & PoolState::GROUNDED ? 0.f : pd->velScaled.y)
+        };
+        PlayerTrailData leftTrail = projectedTrail;
+        PlayerTrailData midTrail = projectedTrail;
         bool closeTheSpiderGap = false;
-        float midMaxShrink = 0.0;
+
+        if (pd->state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS))
+        {
+            spikeBottom = true;
+            spikeTop = true;
+        }
+
+        float initEvilSpikeMargin = (projectedTrail.rectSize.height + spikeSize.height) / 2.f;
+        float initShrunkMargin = initEvilSpikeMargin + std::max(spikeMargin, 0.f);
+        float yMin = projectedTrail.pos.y - initShrunkMargin;
+        float yMax = projectedTrail.pos.y + initShrunkMargin;
+
         for (auto it = m_playerTrail.rbegin(); it != m_playerTrail.rend(); ++it)
         {
             auto trail = *it;
@@ -487,7 +498,6 @@ void LayoutGeneratorLayer::update(float dt)
             if (trail.pos.x > spikeX)
             {
                 midTrail = trail;
-                midMaxShrink = shrunkSpikeMargin - evilSpikeMargin;
             }
 
             yMin = std::min(yMin, trail.pos.y - shrunkSpikeMargin);
@@ -813,6 +823,9 @@ void LayoutGeneratorLayer::placeFish(PlayerData *pd, const PoolObject *fish, boo
             pos.x -= tempObjRect.getMaxX();
         if (useLastY)
             pos.y = m_lastPlacedFishPos.y;
+
+        // Ensure obstacles lead the player by 1 frame
+        pos.x = std::max(pos.x, pd->pos.x + pd->velScaled.x);
 
         // check if ok to place the object at the new position
         if (isOutOfBounds(pos.y, tempObjRect.size.height, pd))
