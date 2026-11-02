@@ -56,6 +56,10 @@ void LayoutGeneratorLayer::reset()
     m_lastPlayerGamemode = PoolState::GAMEMODE_CUBE;
     m_lastSpikeBottomPos = CCPoint{};
     m_lastSpikeTopPos = CCPoint{};
+    m_lastSlopeBottomPos = CCPoint{};
+    m_lastSlopeTopPos = CCPoint{};
+    m_lastWaveRisingBottom = false;
+    m_lastWaveRisingTop = false;
     m_placeAgainTimer = -1;
     m_placedObjectUniqueIds.clear();
     m_playerPosPauseCheck = CCPoint{};
@@ -1058,73 +1062,132 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
     const PlayerTrailData &midTrail,
     float dedupDistance)
 {
-    // wave (slopes) (unused)
-    //         auto bottomSpike = createObject(objectId, spikeBottomPos);
-    //         if (rightPos.y < midPos.y)
-    //             bottomSpike->setRotation(90.f);
-    //         else
-    //         {
-    //             bottomSpike->setFlipX(true);
-    //             bottomSpike->setRotation(-90.f);
-    //         }
-    //         auto topSpike = createObject(objectId, spikeTopPos);
-    //         if (rightPos.y > midPos.y)
-    //         {
-    //             topSpike->setFlipY(true);
-    //             topSpike->setRotation(-90.f);
-    //         }
-    //         else
-    //             topSpike->setRotation(-90.f);
+    auto mod = Mod::get();
+    bool isWave = (midTrail.state & PoolState::GAMEMODE_WAVE) != 0;
+    bool useWaveSlopes = isWave && mod->getSettingValue<bool>("wave-slopes");
+    bool useWaveSpikes = !isWave || mod->getSettingValue<bool>("wave-spikes") || !useWaveSlopes;
 
-    // player height + spike height - 1
-    const float verticalFillDist = midTrail.rectSize.height + 11.f;
-
-    // bottom
-    if (getObjectNearPoint(bottomPos, dedupDistance, ObjectId::SPIKE) == nullptr)
+    if (useWaveSlopes)
     {
-        if (bottom)
+        bool isRising = (midTrail.velUnscaled.y * midTrail.getSign()) > 0.5f;
+        bool isFalling = (midTrail.velUnscaled.y * midTrail.getSign()) < -0.5f;
+
+        // Slopes have center on hypotenuse at x = pos.x
+        // bottomPos.y was (midTrail.pos.y - halfHeight - 15.f - clearance)
+        // For slope, surface passes through center at x=pos.x, so slope center Y is bottomPos.y + 15.f
+        CCPoint slopeBottomPos = CCPoint{bottomPos.x, bottomPos.y + 15.f};
+        CCPoint slopeTopPos = CCPoint{topPos.x, topPos.y - 15.f};
+
+        float slopeDedup = 20.f;
+
+        if (bottom && (isRising || isFalling))
         {
-            placeSpikeInBounds(bottomPos, midTrail, false);
-            if (m_lastSpikeBottomPos.x > 0)
+            bool directionChanged = (isRising != m_lastWaveRisingBottom);
+            if (directionChanged || getObjectNearPoint(slopeBottomPos, slopeDedup, ObjectId::SLOPE) == nullptr)
             {
-                CCPoint bottomPos2 = bottomPos;
-                while (bottomPos2.y > m_lastSpikeBottomPos.y + verticalFillDist)
-                {
-                    bottomPos2.y -= verticalFillDist;
-                    placeSpikeInBounds(bottomPos2, midTrail, false);
-                }
-                while (bottomPos.y < m_lastSpikeBottomPos.y - verticalFillDist)
-                {
-                    m_lastSpikeBottomPos.y -= verticalFillDist;
-                    placeSpikeInBounds(m_lastSpikeBottomPos, midTrail, false);
-                }
+                placeSlopeInBounds(slopeBottomPos, midTrail, false, isRising);
+                m_lastWaveRisingBottom = isRising;
+                m_lastSlopeBottomPos = slopeBottomPos;
             }
         }
-        m_lastSpikeBottomPos = bottomPos;
+
+        if (top && (isRising || isFalling))
+        {
+            bool directionChanged = (isRising != m_lastWaveRisingTop);
+            if (directionChanged || getObjectNearPoint(slopeTopPos, slopeDedup, ObjectId::SLOPE) == nullptr)
+            {
+                placeSlopeInBounds(slopeTopPos, midTrail, true, isRising);
+                m_lastWaveRisingTop = isRising;
+                m_lastSlopeTopPos = slopeTopPos;
+            }
+        }
+
+        // If flat in wave mode, allow spikes to bound the flat area
+        if (!isRising && !isFalling)
+        {
+            useWaveSpikes = true;
+        }
     }
 
-    // top
-    if (getObjectNearPoint(topPos, dedupDistance, ObjectId::SPIKE) == nullptr)
+    if (useWaveSpikes)
     {
-        if (top)
+        // player height + spike height - 1
+        const float verticalFillDist = midTrail.rectSize.height + 11.f;
+
+        // bottom
+        if (getObjectNearPoint(bottomPos, dedupDistance, ObjectId::SPIKE) == nullptr)
         {
-            placeSpikeInBounds(topPos, midTrail, true);
-            if (m_lastSpikeTopPos.x > 0)
+            if (bottom)
             {
-                while (topPos.y > m_lastSpikeTopPos.y + verticalFillDist)
+                placeSpikeInBounds(bottomPos, midTrail, false);
+                if (m_lastSpikeBottomPos.x > 0)
                 {
-                    m_lastSpikeTopPos.y += verticalFillDist;
-                    placeSpikeInBounds(m_lastSpikeTopPos, midTrail, true);
+                    CCPoint bottomPos2 = bottomPos;
+                    while (bottomPos2.y > m_lastSpikeBottomPos.y + verticalFillDist)
+                    {
+                        bottomPos2.y -= verticalFillDist;
+                        placeSpikeInBounds(bottomPos2, midTrail, false);
+                    }
+                    while (bottomPos.y < m_lastSpikeBottomPos.y - verticalFillDist)
+                    {
+                        m_lastSpikeBottomPos.y -= verticalFillDist;
+                        placeSpikeInBounds(m_lastSpikeBottomPos, midTrail, false);
+                    }
                 }
-                CCPoint topPos2 = topPos;
-                while (topPos2.y < m_lastSpikeTopPos.y - verticalFillDist)
+            }
+            m_lastSpikeBottomPos = bottomPos;
+        }
+
+        // top
+        if (getObjectNearPoint(topPos, dedupDistance, ObjectId::SPIKE) == nullptr)
+        {
+            if (top)
+            {
+                placeSpikeInBounds(topPos, midTrail, true);
+                if (m_lastSpikeTopPos.x > 0)
                 {
-                    topPos2.y += verticalFillDist;
-                    placeSpikeInBounds(topPos2, midTrail, true);
+                    while (topPos.y > m_lastSpikeTopPos.y + verticalFillDist)
+                    {
+                        m_lastSpikeTopPos.y += verticalFillDist;
+                        placeSpikeInBounds(m_lastSpikeTopPos, midTrail, true);
+                    }
+                    CCPoint topPos2 = topPos;
+                    while (topPos2.y < m_lastSpikeTopPos.y - verticalFillDist)
+                    {
+                        topPos2.y += verticalFillDist;
+                        placeSpikeInBounds(topPos2, midTrail, true);
+                    }
+                }
+            }
+            m_lastSpikeTopPos = topPos;
+        }
+    }
+}
+
+void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising)
+{
+    if (!isOutOfBounds(pos.y, 30.f, trail))
+    {
+        bool isMini = trail.state & PoolState::SIZE_MINI;
+        float checkY = isCeiling ? (pos.y + 4.f) : (pos.y - 14.f);
+        CCRect slopeSolidRect = CCRect(pos.x - 12.f, checkY, 24.f, 10.f);
+
+        if (!doesRectInterfereWithTrail(slopeSolidRect, pos.x + 30.f, true, isMini))
+        {
+            if (auto slope = createObject(ObjectId::SLOPE, pos))
+            {
+                if (isCeiling)
+                {
+                    slope->setFlipY(true);
+                    slope->setFlipX(isRising);
+                }
+                else
+                {
+                    slope->setFlipY(false);
+                    slope->setFlipX(!isRising);
                 }
             }
         }
-        m_lastSpikeTopPos = topPos;
     }
 }
 

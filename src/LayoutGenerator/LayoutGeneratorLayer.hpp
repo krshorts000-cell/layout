@@ -50,6 +50,14 @@ protected:
 
     CCPoint m_lastSpikeTopPos;
 
+    CCPoint m_lastSlopeBottomPos;
+
+    CCPoint m_lastSlopeTopPos;
+
+    bool m_lastWaveRisingBottom = false;
+
+    bool m_lastWaveRisingTop = false;
+
     int m_placeAgainTimer = -1;
 
     std::unordered_set<int> m_placedObjectUniqueIds;
@@ -109,6 +117,8 @@ protected:
         float dedupDistance);
 
     void placeSpikeInBounds(CCPoint pos, const PlayerTrailData &trail, bool flipY);
+
+    void placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising);
 
     bool doesRectInterfereWithTrail(CCRect rect, float playerX, bool isBlock, bool isMini);
 
