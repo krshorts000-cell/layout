@@ -184,9 +184,9 @@
 		},
 		"ai-prompt": {
 			"name": "AI Prompt",
-			"description": "Custom prompt describing the gameplay rhythm and difficulty",
+			"description": "Custom prompt describing gameplay rhythm and difficulty (e.g. 'fun readable wave section with smooth slopes')",
 			"type": "string",
-			"default": "generate an intense sync wave layout with tight clicks at 240 fps",
+			"default": "fun and readable rhythmic wave layout with smooth slopes and good music sync",
 			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-.,!?:;\"'()[]{}/"
 		}
 	},

@@ -143,11 +143,19 @@ class $modify(MyEditorUI, EditorUI)
         Notification::create("AI: Contacting Shugg...", NotificationIcon::Loading)->show();
 
         std::string systemPrompt = 
-            "You are an AI Geometry Dash macro creator. You generate input click sequences at 240 FPS (TPS). "
-            "Output ONLY raw valid JSON (no markdown, no backticks, no explanations). "
-            "Format: [{\"frame\": 15, \"down\": true}, {\"frame\": 45, \"down\": false}, ...]. "
-            "Frames must be strictly increasing integers from 10 to 900. "
-            "For wave: hold duration between 12 and 45 frames, release duration between 12 and 45 frames.";
+            "You are an expert Geometry Dash level layout designer. You generate human-playable, rhythmic gameplay click sequences at 240 FPS (TPS).\n"
+            "CRITICAL RULES FOR PLAYABILITY:\n"
+            "1. Never create impossible spam. All inputs must be humanly sightreadable and playable (Hard/Demon difficulty, NOT impossible).\n"
+            "2. For Wave mode: Hold duration (down=true) must be between 30 and 75 frames (approx 0.15s - 0.35s). Release duration (down=false) must be between 30 and 75 frames. Never switch faster than 28 frames.\n"
+            "3. For Cube mode: A standard jump takes ~50 frames to land. Consecutive jumps must be at least 55 to 110 frames apart so the cube can land before jumping again.\n"
+            "4. Create musical, rhythmic variety: mix long sweeping slopes (60-75 frames) with punchy sync clicks (30-45 frames).\n"
+            "5. Output ONLY a raw valid JSON array of objects with 'frame' (strictly increasing integer starting at frame 20 up to 1000) and 'down' (boolean). Format: [{\"frame\": 20, \"down\": true}, {\"frame\": 80, \"down\": false}, ...]. No markdown, no backticks, no text.";
+
+        float bpm = mod->hasSetting("bpm") ? static_cast<float>(mod->getSettingValue<double>("bpm")) : 128.f;
+        std::string effectivePrompt = userPrompt;
+        if (effectivePrompt.empty() || effectivePrompt == "generate an intense sync wave layout with tight clicks at 240 fps") {
+            effectivePrompt = fmt::format("Create a fun, rhythmic and humanly beatable layout section synced to ~{:.0f} BPM with smooth musical flow and readable slopes.", bpm);
+        }
 
         std::vector<matjson::Value> msgs;
         msgs.push_back(matjson::makeObject({
@@ -156,7 +164,7 @@ class $modify(MyEditorUI, EditorUI)
         }));
         msgs.push_back(matjson::makeObject({
             {"role", "user"},
-            {"content", userPrompt.empty() ? "Generate rhythmic wave clicks" : userPrompt}
+            {"content", effectivePrompt}
         }));
 
         // Shugg.ru API expects ONLY model and messages (no temperature)
