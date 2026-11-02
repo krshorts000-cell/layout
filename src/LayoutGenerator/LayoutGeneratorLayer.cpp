@@ -1064,13 +1064,21 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 {
     auto mod = Mod::get();
     bool isWave = (midTrail.state & PoolState::GAMEMODE_WAVE) != 0;
-    bool useWaveSlopes = isWave && mod->getSettingValue<bool>("wave-slopes");
-    bool useWaveSpikes = !isWave || mod->getSettingValue<bool>("wave-spikes") || !useWaveSlopes;
+    bool waveSlopesVal = true;
+    if (mod->hasSetting("wave-slopes"))
+        waveSlopesVal = mod->getSettingValue<bool>("wave-slopes");
+
+    bool waveSpikesVal = false;
+    if (mod->hasSetting("wave-spikes"))
+        waveSpikesVal = mod->getSettingValue<bool>("wave-spikes");
+
+    bool useWaveSlopes = isWave && waveSlopesVal;
+    bool useWaveSpikes = !isWave || waveSpikesVal || !useWaveSlopes;
 
     if (useWaveSlopes)
     {
-        bool isRising = (midTrail.velUnscaled.y * midTrail.getSign()) > 0.5f;
-        bool isFalling = (midTrail.velUnscaled.y * midTrail.getSign()) < -0.5f;
+        bool isRising = (midTrail.state & PoolState::RISING) || ((midTrail.velUnscaled.y * midTrail.getSign()) > 0.5f);
+        bool isFalling = (midTrail.state & PoolState::FALLING) || ((midTrail.velUnscaled.y * midTrail.getSign()) < -0.5f);
 
         // Slopes have center on hypotenuse at x = pos.x
         // bottomPos.y was (midTrail.pos.y - halfHeight - 15.f - clearance)
@@ -1168,24 +1176,17 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
 {
     if (!isOutOfBounds(pos.y, 30.f, trail))
     {
-        bool isMini = trail.state & PoolState::SIZE_MINI;
-        float checkY = isCeiling ? (pos.y + 4.f) : (pos.y - 14.f);
-        CCRect slopeSolidRect = CCRect(pos.x - 12.f, checkY, 24.f, 10.f);
-
-        if (!doesRectInterfereWithTrail(slopeSolidRect, pos.x + 30.f, true, isMini))
+        if (auto slope = createObject(ObjectId::SLOPE, pos))
         {
-            if (auto slope = createObject(ObjectId::SLOPE, pos))
+            if (isCeiling)
             {
-                if (isCeiling)
-                {
-                    slope->setFlipY(true);
-                    slope->setFlipX(isRising);
-                }
-                else
-                {
-                    slope->setFlipY(false);
-                    slope->setFlipX(!isRising);
-                }
+                slope->setFlipY(true);
+                slope->setFlipX(isRising);
+            }
+            else
+            {
+                slope->setFlipY(false);
+                slope->setFlipX(!isRising);
             }
         }
     }
@@ -1195,14 +1196,9 @@ void LayoutGeneratorLayer::placeSpikeInBounds(CCPoint pos, const PlayerTrailData
 {
     if (!isOutOfBounds(pos.y, 12.f, trail))
     {
-        bool isMini = trail.state & PoolState::SIZE_MINI;
-        CCRect spikeRect = CCRect(pos.x - 12.f, pos.y - 12.f, 24.f, 24.f);
-        if (!doesRectInterfereWithTrail(spikeRect, pos.x + 30.f, false, isMini))
+        if (auto spike = createObject(ObjectId::SPIKE, pos))
         {
-            if (auto spike = createObject(ObjectId::SPIKE, pos))
-            {
-                spike->setFlipY(flipY);
-            }
+            spike->setFlipY(flipY);
         }
     }
 }

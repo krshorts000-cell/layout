@@ -112,7 +112,6 @@
 		"wave-spikes": {
 			"name": "Spikes on wave slopes",
 			"description": "Places additional hazard spikes along the wave corridor.",
-			"enable-if": "wave-slopes",
 			"type": "bool",
 			"default": false
 		},
