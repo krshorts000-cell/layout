@@ -140,21 +140,35 @@ class $modify(MyEditorUI, EditorUI)
             apiUrl = "https://api.shugg.ru/v1/chat/completions";
         }
 
-        Notification::create("AI: Contacting Shugg...", NotificationIcon::Loading)->show();
-
-        std::string systemPrompt = 
-            "You are an expert Geometry Dash level layout designer. You generate human-playable, rhythmic gameplay click sequences at 240 FPS (TPS).\n"
-            "CRITICAL RULES FOR PLAYABILITY:\n"
-            "1. Never create impossible spam. All inputs must be humanly sightreadable and playable (Hard/Demon difficulty, NOT impossible).\n"
-            "2. For Wave mode: Hold duration (down=true) must be between 30 and 75 frames (approx 0.15s - 0.35s). Release duration (down=false) must be between 30 and 75 frames. Never switch faster than 28 frames.\n"
-            "3. For Cube mode: A standard jump takes ~50 frames to land. Consecutive jumps must be at least 55 to 110 frames apart so the cube can land before jumping again.\n"
-            "4. Create musical, rhythmic variety: mix long sweeping slopes (60-75 frames) with punchy sync clicks (30-45 frames).\n"
-            "5. Output ONLY a raw valid JSON array of objects with 'frame' (strictly increasing integer starting at frame 20 up to 1000) and 'down' (boolean). Format: [{\"frame\": 20, \"down\": true}, {\"frame\": 80, \"down\": false}, ...]. No markdown, no backticks, no text.";
-
+        std::string difficulty = mod->hasSetting("ai-difficulty") ? mod->getSettingValue<std::string>("ai-difficulty") : "Medium";
+        std::string style = mod->hasSetting("ai-gameplay-style") ? mod->getSettingValue<std::string>("ai-gameplay-style") : "Flow & Rhythmic";
+        int minHold = mod->hasSetting("ai-min-hold") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-min-hold")) : 35;
+        int maxHold = mod->hasSetting("ai-max-hold") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-max-hold")) : 75;
+        int clicksCount = mod->hasSetting("ai-clicks-count") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-clicks-count")) : 24;
         float bpm = mod->hasSetting("bpm") ? static_cast<float>(mod->getSettingValue<double>("bpm")) : 128.f;
+
+        Notification::create(fmt::format("AI: Generating {} ({})...", difficulty, style), NotificationIcon::Loading)->show();
+
+        std::string systemPrompt = fmt::format(
+            "You are an expert Geometry Dash level layout designer at 240 FPS (TPS).\n"
+            "Generate a click sequence matching these player parameters:\n"
+            "- Target Difficulty: {}\n"
+            "- Movement Style: {}\n"
+            "- Minimum hold/release duration: {} frames (strictly never switch faster than this)\n"
+            "- Maximum hold duration: {} frames\n"
+            "- Total inputs count: exactly {}\n"
+            "- Song BPM: ~{:.0f}\n"
+            "RULES FOR PLAYABILITY:\n"
+            "1. For Wave mode: Hold duration (down=true) between {} and {} frames. Release duration (down=false) between {} and {} frames.\n"
+            "2. For Cube mode: Consecutive jumps must be at least 55-100 frames apart so the cube can land.\n"
+            "3. Strictly enforce difficulty: if Easy/Medium, use wider slopes and fewer switches; if Hard/Demon, use more rhythmic changes.\n"
+            "4. Output ONLY a raw valid JSON array: [{{\"frame\": 20, \"down\": true}}, ...]. Strictly increasing frame numbers. No markdown, no text.",
+            difficulty, style, minHold, maxHold, clicksCount, bpm, minHold, maxHold, minHold, maxHold
+        );
+
         std::string effectivePrompt = userPrompt;
         if (effectivePrompt.empty() || effectivePrompt == "generate an intense sync wave layout with tight clicks at 240 fps") {
-            effectivePrompt = fmt::format("Create a fun, rhythmic and humanly beatable layout section synced to ~{:.0f} BPM with smooth musical flow and readable slopes.", bpm);
+            effectivePrompt = fmt::format("Generate a {} difficulty section in '{}' style synced to ~{:.0f} BPM.", difficulty, style, bpm);
         }
 
         std::vector<matjson::Value> msgs;

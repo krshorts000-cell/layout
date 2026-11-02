@@ -161,6 +161,71 @@
 			"name": "AI Layout Generator",
 			"type": "title"
 		},
+		"ai-difficulty": {
+			"name": "AI Difficulty",
+			"description": "Select the target gameplay difficulty",
+			"type": "string",
+			"default": "Medium",
+			"one-of": [
+				"Easy",
+				"Medium",
+				"Hard",
+				"Insane",
+				"Extreme Demon",
+				"Impossible"
+			]
+		},
+		"ai-gameplay-style": {
+			"name": "Gameplay Style",
+			"description": "Movement rhythm and feel",
+			"type": "string",
+			"default": "Flow & Rhythmic",
+			"one-of": [
+				"Flow & Rhythmic",
+				"Sweeping & Wide",
+				"Tech & Precision",
+				"Fast Paced"
+			]
+		},
+		"ai-min-hold": {
+			"name": "Min Click Duration (Frames)",
+			"description": "Minimum frames to hold/release a click at 240 FPS (higher = easier)",
+			"type": "int",
+			"default": 35,
+			"min": 12,
+			"max": 120,
+			"control": {
+				"slider": true,
+				"arrows": true,
+				"arrow-step": 5
+			}
+		},
+		"ai-max-hold": {
+			"name": "Max Click Duration (Frames)",
+			"description": "Maximum frames to hold a slope before releasing (higher = wider slopes)",
+			"type": "int",
+			"default": 75,
+			"min": 25,
+			"max": 200,
+			"control": {
+				"slider": true,
+				"arrows": true,
+				"arrow-step": 5
+			}
+		},
+		"ai-clicks-count": {
+			"name": "Clicks Count",
+			"description": "Number of input clicks the AI will generate (section length)",
+			"type": "int",
+			"default": 24,
+			"min": 8,
+			"max": 100,
+			"control": {
+				"slider": true,
+				"arrows": true,
+				"arrow-step": 4
+			}
+		},
 		"ai-api-key": {
 			"name": "AI API Key",
 			"description": "API Key for AI layout generation (Shugg.ru)",
