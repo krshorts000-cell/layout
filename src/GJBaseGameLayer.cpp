@@ -74,9 +74,14 @@ class $modify(BGLHook, GJBaseGameLayer) {
 
             GJBaseGameLayer::handleButton(input.down, input.button, input.player2);
 
-            if (isEditor && m_player1 && !input.player2) {
-                if (input.down) m_player1->pushButton((PlayerButton)input.button);
-                else m_player1->releaseButton((PlayerButton)input.button);
+            if (isEditor) {
+                if (!input.player2 && m_player1) {
+                    if (input.down) m_player1->pushButton((PlayerButton)input.button);
+                    else m_player1->releaseButton((PlayerButton)input.button);
+                } else if (input.player2 && m_player2) {
+                    if (input.down) m_player2->pushButton((PlayerButton)input.button);
+                    else m_player2->releaseButton((PlayerButton)input.button);
+                }
             }
 
             g.currentAction++;

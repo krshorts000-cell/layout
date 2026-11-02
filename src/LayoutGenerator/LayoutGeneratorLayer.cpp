@@ -121,6 +121,11 @@ void LayoutGeneratorLayer::update(float dt)
     // playerdata
     auto mod = Mod::get();
     auto editor = LevelEditorLayer::get();
+    if (editor)
+    {
+        if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
+        if (editor->m_player2) editor->m_player2->m_ignoreDamage = true;
+    }
     auto pd = new PlayerData();
     pd->setPlayer(editor->m_player1);
     if (!pd->player)
@@ -491,18 +496,12 @@ void LayoutGeneratorLayer::update(float dt)
 
         if (yMin < FLT_MAX)
         {
-            if (!(midTrail.state & PoolState::GAMEMODE_WAVE))
-            {
-                float jumpShrink = std::min(midMaxShrink, midTrail.state & PoolState::SIZE_MINI ? 30.f : 15.f);
-                if (leftTrail.pos.y < midTrail.pos.y - 1.f &&
-                    pd->pos.y < midTrail.pos.y - 1.f &&
-                    !midTrail.isUpsideDown())
-                    yMin += jumpShrink;
-                if (leftTrail.pos.y > midTrail.pos.y + 1.f &&
-                    pd->pos.y > midTrail.pos.y + 1.f &&
-                    midTrail.isUpsideDown())
-                    yMax -= jumpShrink;
-            }
+            // Strict safety buffer: spike tip must never penetrate into the player collision trajectory
+            float safeClearance = evilSpikeMargin + 8.f;
+            if (yMin > midTrail.pos.y - safeClearance)
+                yMin = midTrail.pos.y - safeClearance;
+            if (yMax < midTrail.pos.y + safeClearance)
+                yMax = midTrail.pos.y + safeClearance;
 
             placeSpikeBoundary(
                 spikeBottom,
@@ -616,6 +615,11 @@ GameObject *LayoutGeneratorLayer::createObject(int key, CCPoint position)
         if (auto object = editor->createObject(key, position, true))
         {
             m_placedObjectUniqueIds.insert(object->m_uniqueID);
+            // Ensure generated objects never render in front of player
+            if ((int)object->m_zLayer > (int)ZLayer::B1)
+            {
+                object->m_zLayer = ZLayer::B1;
+            }
             return object;
         }
     }
@@ -1114,9 +1118,14 @@ void LayoutGeneratorLayer::placeSpikeInBounds(CCPoint pos, const PlayerTrailData
 {
     if (!isOutOfBounds(pos.y, 12.f, trail))
     {
-        if (auto spike = createObject(ObjectId::SPIKE, pos))
+        bool isMini = trail.state & PoolState::SIZE_MINI;
+        CCRect spikeRect = CCRect(pos.x - 12.f, pos.y - 12.f, 24.f, 24.f);
+        if (!doesRectInterfereWithTrail(spikeRect, pos.x + 30.f, false, isMini))
         {
-            spike->setFlipY(flipY);
+            if (auto spike = createObject(ObjectId::SPIKE, pos))
+            {
+                spike->setFlipY(flipY);
+            }
         }
     }
 }

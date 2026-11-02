@@ -45,6 +45,9 @@ class $modify(MyEditorUI, EditorUI)
         if (!isBuilding && m_editorLayer) {
             if (m_editorLayer->m_player1) m_editorLayer->m_player1->m_ignoreDamage = false;
             if (m_editorLayer->m_player2) m_editorLayer->m_player2->m_ignoreDamage = false;
+        } else if (isBuilding && m_editorLayer) {
+            if (m_editorLayer->m_player1) m_editorLayer->m_player1->m_ignoreDamage = true;
+            if (m_editorLayer->m_player2) m_editorLayer->m_player2->m_ignoreDamage = true;
         }
     }
 

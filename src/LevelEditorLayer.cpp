@@ -34,4 +34,11 @@ class $modify(MyLevelEditorLayer, LevelEditorLayer)
         if (auto builder = m_fields->m_builder)
             builder->playtestStopped();
     }
+
+    void onDestroy()
+    {
+        if (auto builder = m_fields->m_builder)
+            builder->playtestStopped();
+        LevelEditorLayer::onDestroy();
+    }
 };

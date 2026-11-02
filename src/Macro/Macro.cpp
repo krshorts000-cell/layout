@@ -18,7 +18,7 @@ int Global::getCurrentFrame(bool editor) {
         if (!editorLayer || editorLayer->m_playbackMode != PlaybackMode::Playing)
             return 0;
 
-        frame = static_cast<int>(editorLayer->m_gameState.m_currentProgress / 2) + 1;
+        frame = static_cast<int>(editorLayer->m_gameState.m_currentProgress / 2);
     } else {
         if (!g.macro.xdBotMacro && g.state == state::playing) {
             frame = pl->m_gameState.m_currentProgress;
