@@ -76,7 +76,9 @@ protected:
 
 public:
     void buildStart();
+    void buildStartWithAIMacro();
     void buildStop();
+    bool m_usingAIMacro = false;
 
 protected:
     bool init() override;

@@ -241,13 +241,12 @@ class $modify(MyEditorUI, EditorUI)
                 }
 
                 std::stable_sort(g.macro.inputs.begin(), g.macro.inputs.end());
-                g.state = state::playing;
                 Macro::resetPlayback();
 
                 Notification::create(fmt::format("AI: Loaded {} clicks! Building layout...", g.macro.inputs.size()), NotificationIcon::Success)->show();
 
                 if (auto builder = getBuilder()) {
-                    builder->buildStart();
+                    builder->buildStartWithAIMacro();
                 }
             }
         );

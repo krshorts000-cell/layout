@@ -67,6 +67,7 @@ void LayoutGeneratorLayer::reset()
     m_shouldTap = PoolTap::NO;
     m_shouldTapTimer = 0;
     m_tapBalance = 3.f; // don't make the player jump straight away
+    m_usingAIMacro = false;
 }
 
 void LayoutGeneratorLayer::sendClick(bool hold)
@@ -102,6 +103,28 @@ void LayoutGeneratorLayer::buildStart()
 
     placeCreditText("made with", CCPoint{105.f, 300.f});
     placeCreditText("layout generator", CCPoint{105.f, 285.f});
+    if (auto editor = LevelEditorLayer::get()) {
+        editor->m_gameState.m_currentProgress = 0;
+        if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
+        if (editor->m_player2) editor->m_player2->m_ignoreDamage = true;
+    }
+    LevelEditorLayer::get()->m_editorUI->onPlaytest(nullptr);
+}
+
+void LayoutGeneratorLayer::buildStartWithAIMacro()
+{
+    reset();
+    auto& g = Global::get();
+    // Do NOT clear g.macro.inputs: preserve AI generated inputs!
+    g.macro.frameFixes.clear();
+    g.macro.framerate = 240.f;
+    g.currentAction = 0;
+    g.previousFrame = 0;
+    g.state = state::playing;
+    m_usingAIMacro = true;
+
+    placeCreditText("ai generated", CCPoint{105.f, 300.f});
+    placeCreditText("with shugg ai", CCPoint{105.f, 285.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
@@ -208,9 +231,17 @@ void LayoutGeneratorLayer::update(float dt)
         m_boundsCeil = mid + height / 2.f / zoom;
     }
 
+    // Auto-stop when AI macro completes
+    auto& g = Global::get();
+    if (m_usingAIMacro && !g.macro.inputs.empty() && Global::getCurrentFrame(true) > g.macro.inputs.back().frame + 40)
+    {
+        buildStop();
+        return;
+    }
+
     // place object on beat (spb = seconds per beat)
     float spb = 60.f / mod->getSettingValue<float>("bpm");
-    bool usePlayerClicks = mod->getSettingValue<bool>("use-player-clicks");
+    bool usePlayerClicks = m_usingAIMacro || mod->getSettingValue<bool>("use-player-clicks");
     bool useRandomClicks = !usePlayerClicks;
     bool onBeat = false;
     bool onHalfBeat = false;
