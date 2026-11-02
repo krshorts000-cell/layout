@@ -1080,7 +1080,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
     if (useWaveSlopes)
     {
-        bool isRising = (midTrail.state & PoolState::RISING) || ((midTrail.velUnscaled.y * midTrail.getSign()) > 0.5f);
+        bool isRising = (midTrail.getSign() > 0) ? midTrail.isClicking : !midTrail.isClicking;
 
         bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
         float halfHeight = midTrail.rectSize.height / 2.f;
@@ -1091,9 +1091,8 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
         if (bottom)
         {
-            bool dirChanged = (isRising != m_lastWaveRisingBottom);
             bool distOk = (m_lastSlopeBottomPos.x <= 0.f) || (slopeBottomPos.x - m_lastSlopeBottomPos.x >= 28.f);
-            if (dirChanged || distOk)
+            if (distOk)
             {
                 placeSlopeInBounds(slopeBottomPos, midTrail, false, isRising);
                 m_lastWaveRisingBottom = isRising;
@@ -1103,9 +1102,8 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
         if (top)
         {
-            bool dirChanged = (isRising != m_lastWaveRisingTop);
             bool distOk = (m_lastSlopeTopPos.x <= 0.f) || (slopeTopPos.x - m_lastSlopeTopPos.x >= 28.f);
-            if (dirChanged || distOk)
+            if (distOk)
             {
                 placeSlopeInBounds(slopeTopPos, midTrail, true, isRising);
                 m_lastWaveRisingTop = isRising;
@@ -1171,7 +1169,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
 void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising)
 {
-    if (!isOutOfBounds(pos.y, 30.f, trail))
+    if (!isOutOfBounds(pos.y, 30.f, trail) && getObjectNearPoint(pos, 22.f, ObjectId::SLOPE) == nullptr)
     {
         if (auto slope = createObject(ObjectId::SLOPE, pos))
         {
