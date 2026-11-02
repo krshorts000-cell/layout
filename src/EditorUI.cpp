@@ -138,18 +138,19 @@ class $modify(MyEditorUI, EditorUI)
             "Frames must be strictly increasing integers from 10 to 900. "
             "For wave: hold duration between 12 and 45 frames, release duration between 12 and 45 frames.";
 
+        std::vector<matjson::Value> msgs;
+        msgs.push_back(matjson::makeObject({
+            {"role", "system"},
+            {"content", systemPrompt}
+        }));
+        msgs.push_back(matjson::makeObject({
+            {"role", "user"},
+            {"content", userPrompt}
+        }));
+
         matjson::Value body = matjson::makeObject({
             {"model", model},
-            {"messages", matjson::makeArray({
-                matjson::makeObject({
-                    {"role", "system"},
-                    {"content", systemPrompt}
-                }),
-                matjson::makeObject({
-                    {"role", "user"},
-                    {"content", userPrompt}
-                })
-            })},
+            {"messages", msgs},
             {"temperature", 0.7},
             {"max_tokens", 1500}
         });

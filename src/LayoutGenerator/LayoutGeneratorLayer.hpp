@@ -74,16 +74,14 @@ protected:
 
     float m_tapBalance = 0.f;
 
+public:
+    void buildStart();
+    void buildStop();
+
 protected:
     bool init() override;
 
     void reset();
-
-    // start building
-    void buildStart();
-
-    // stop building (via the EditorUI, which later calls playtestStopped)
-    void buildStop();
 
     void update(float dt) override;
 
