@@ -1076,25 +1076,24 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
         waveSpikesVal = mod->getSettingValue<bool>("wave-spikes");
 
     bool useWaveSlopes = isWave && waveSlopesVal;
-    bool useWaveSpikes = !isWave || waveSpikesVal || !useWaveSlopes;
+    bool useWaveSpikes = (!isWave) || waveSpikesVal;
 
     if (useWaveSlopes)
     {
         bool isRising = (midTrail.state & PoolState::RISING) || ((midTrail.velUnscaled.y * midTrail.getSign()) > 0.5f);
-        bool isFalling = (midTrail.state & PoolState::FALLING) || ((midTrail.velUnscaled.y * midTrail.getSign()) < -0.5f);
 
-        // Slopes have center on hypotenuse at x = pos.x
-        // bottomPos.y was (midTrail.pos.y - halfHeight - 15.f - clearance)
-        // For slope, surface passes through center at x=pos.x, so slope center Y is bottomPos.y + 15.f
-        CCPoint slopeBottomPos = CCPoint{bottomPos.x, bottomPos.y + 15.f};
-        CCPoint slopeTopPos = CCPoint{topPos.x, topPos.y - 15.f};
+        bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
+        float halfHeight = midTrail.rectSize.height / 2.f;
+        float clearance = isFramePerfect ? 1.5f : 8.f;
 
-        float slopeDedup = 20.f;
+        CCPoint slopeBottomPos = CCPoint{bottomPos.x, midTrail.pos.y - halfHeight - clearance};
+        CCPoint slopeTopPos = CCPoint{topPos.x, midTrail.pos.y + halfHeight + clearance};
 
-        if (bottom && (isRising || isFalling))
+        if (bottom)
         {
-            bool directionChanged = (isRising != m_lastWaveRisingBottom);
-            if (directionChanged || getObjectNearPoint(slopeBottomPos, slopeDedup, ObjectId::SLOPE) == nullptr)
+            bool dirChanged = (isRising != m_lastWaveRisingBottom);
+            bool distOk = (m_lastSlopeBottomPos.x <= 0.f) || (slopeBottomPos.x - m_lastSlopeBottomPos.x >= 28.f);
+            if (dirChanged || distOk)
             {
                 placeSlopeInBounds(slopeBottomPos, midTrail, false, isRising);
                 m_lastWaveRisingBottom = isRising;
@@ -1102,21 +1101,16 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
             }
         }
 
-        if (top && (isRising || isFalling))
+        if (top)
         {
-            bool directionChanged = (isRising != m_lastWaveRisingTop);
-            if (directionChanged || getObjectNearPoint(slopeTopPos, slopeDedup, ObjectId::SLOPE) == nullptr)
+            bool dirChanged = (isRising != m_lastWaveRisingTop);
+            bool distOk = (m_lastSlopeTopPos.x <= 0.f) || (slopeTopPos.x - m_lastSlopeTopPos.x >= 28.f);
+            if (dirChanged || distOk)
             {
                 placeSlopeInBounds(slopeTopPos, midTrail, true, isRising);
                 m_lastWaveRisingTop = isRising;
                 m_lastSlopeTopPos = slopeTopPos;
             }
-        }
-
-        // If flat in wave mode, allow spikes to bound the flat area
-        if (!isRising && !isFalling)
-        {
-            useWaveSpikes = true;
         }
     }
 
@@ -1131,7 +1125,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
             if (bottom)
             {
                 placeSpikeInBounds(bottomPos, midTrail, false);
-                if (m_lastSpikeBottomPos.x > 0)
+                if (!isWave && m_lastSpikeBottomPos.x > 0)
                 {
                     CCPoint bottomPos2 = bottomPos;
                     while (bottomPos2.y > m_lastSpikeBottomPos.y + verticalFillDist)
@@ -1155,7 +1149,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
             if (top)
             {
                 placeSpikeInBounds(topPos, midTrail, true);
-                if (m_lastSpikeTopPos.x > 0)
+                if (!isWave && m_lastSpikeTopPos.x > 0)
                 {
                     while (topPos.y > m_lastSpikeTopPos.y + verticalFillDist)
                     {
