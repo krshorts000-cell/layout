@@ -407,7 +407,9 @@ void LayoutGeneratorLayer::update(float dt)
     // spikes v2
     if (mod->getSettingValue<bool>("spike-boundary-enabled"))
     {
-        const float spikeMargin = mod->getSettingValue<float>("spike-margin");
+        const bool isFramePerfect = mod->getSettingValue<bool>("frame-perfect");
+        const float configuredMargin = mod->getSettingValue<float>("spike-margin");
+        const float spikeMargin = isFramePerfect ? 0.f : configuredMargin;
         const CCSize playerSize = pd->getRectSize();
 
         // slightly larger than a spike hitbox, because just grazing the side of a spike kills you
@@ -429,7 +431,7 @@ void LayoutGeneratorLayer::update(float dt)
         };
         PlayerTrailData leftTrail = projectedTrail;
         PlayerTrailData midTrail = projectedTrail;
-        bool closeTheSpiderGap = false;
+        bool closeTheSpiderGap = isFramePerfect ? true : false;
 
         if (pd->state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS))
         {
@@ -438,7 +440,8 @@ void LayoutGeneratorLayer::update(float dt)
         }
 
         float initEvilSpikeMargin = (projectedTrail.rectSize.height + spikeSize.height) / 2.f;
-        float initShrunkMargin = initEvilSpikeMargin + std::max(spikeMargin, 0.f);
+        float initMargin = isFramePerfect ? 1.5f : std::max(spikeMargin, 0.f);
+        float initShrunkMargin = initEvilSpikeMargin + initMargin;
         float yMin = projectedTrail.pos.y - initShrunkMargin;
         float yMax = projectedTrail.pos.y + initShrunkMargin;
 
@@ -485,15 +488,18 @@ void LayoutGeneratorLayer::update(float dt)
 
             // shrink the bounds a bit more in certain gamemodes where it's too easy
             float shrink = 0.f;
-            if (trail.state & PoolState::GAMEMODE_SHIP)
-                shrink = 10.f;
-            else if (trail.state & PoolState::GAMEMODE_WAVE && trail.state & (PoolState::SIZE_NORMAL | PoolState::SIZE_BIG))
-                shrink = 10.f;
-            else if (trail.state & PoolState::GAMEMODE_UFO && trail.state & PoolState::SIZE_MINI)
-                shrink = 10.f;
+            if (!isFramePerfect)
+            {
+                if (trail.state & PoolState::GAMEMODE_SHIP)
+                    shrink = 10.f;
+                else if (trail.state & PoolState::GAMEMODE_WAVE && trail.state & (PoolState::SIZE_NORMAL | PoolState::SIZE_BIG))
+                    shrink = 10.f;
+                else if (trail.state & PoolState::GAMEMODE_UFO && trail.state & PoolState::SIZE_MINI)
+                    shrink = 10.f;
+            }
 
             float evilSpikeMargin = (trail.rectSize.height + spikeSize.height) / 2.f;
-            float shrunkSpikeMargin = evilSpikeMargin + std::max(spikeMargin - shrink, 0.f);
+            float shrunkSpikeMargin = evilSpikeMargin + (isFramePerfect ? 1.5f : std::max(spikeMargin - shrink, 0.f));
             leftTrail = trail;
             if (trail.pos.x > spikeX)
             {
@@ -506,9 +512,9 @@ void LayoutGeneratorLayer::update(float dt)
 
         if (yMin < FLT_MAX)
         {
-            // Strict safety buffer: spike tip must never penetrate into the player collision trajectory
+            // Frame-perfect clearance (1.5f tolerance: clicking 1 frame off results in 10+ units displacement and instant death)
             float midEvilSpikeMargin = (midTrail.rectSize.height + spikeSize.height) / 2.f;
-            float safeClearance = midEvilSpikeMargin + 8.f;
+            float safeClearance = isFramePerfect ? (midEvilSpikeMargin + 1.5f) : (midEvilSpikeMargin + 8.f);
             if (yMin > midTrail.pos.y - safeClearance)
                 yMin = midTrail.pos.y - safeClearance;
             if (yMax < midTrail.pos.y + safeClearance)
@@ -520,17 +526,11 @@ void LayoutGeneratorLayer::update(float dt)
                 spikeTop,
                 CCPoint{spikeX, yMax},
                 midTrail,
-                spikeMargin <= 0.f
-                    // zero spike margin will do this just for fun
+                (isFramePerfect || spikeMargin <= 0.f)
                     ? 0.f
-                    // otherwise...
                     : (closeTheSpiderGap
-                           // when performing a spider teleport, the player uses the inner rect for collision,
-                           // which is approximately 6 units wide. (except for wave, which is not handled.)
-                           // it does not change when mini.
                            ? 6.f
                            : playerSize.width) +
-                          // add one spike width minus xv
                           6.f - pd->velScaled.x);
         }
     }

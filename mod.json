@@ -97,6 +97,12 @@
 				3005
 			]
 		},
+		"frame-perfect": {
+			"name": "Frame perfect clicks",
+			"description": "Aligns spike corridors and obstacles with 1-frame precision so that every jump/click requires exact frame-perfect timing.",
+			"type": "bool",
+			"default": true
+		},
 		"spike-boundary-enabled": {
 			"name": "Spikes",
 			"type": "bool",
