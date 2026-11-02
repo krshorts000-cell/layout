@@ -497,7 +497,8 @@ void LayoutGeneratorLayer::update(float dt)
         if (yMin < FLT_MAX)
         {
             // Strict safety buffer: spike tip must never penetrate into the player collision trajectory
-            float safeClearance = evilSpikeMargin + 8.f;
+            float midEvilSpikeMargin = (midTrail.rectSize.height + spikeSize.height) / 2.f;
+            float safeClearance = midEvilSpikeMargin + 8.f;
             if (yMin > midTrail.pos.y - safeClearance)
                 yMin = midTrail.pos.y - safeClearance;
             if (yMax < midTrail.pos.y + safeClearance)
