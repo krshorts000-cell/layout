@@ -124,9 +124,20 @@ class $modify(MyEditorUI, EditorUI)
         std::string model = mod->getSettingValue<std::string>("ai-model");
         std::string userPrompt = mod->getSettingValue<std::string>("ai-prompt");
 
-        if (apiKey.empty()) {
-            Notification::create("AI Error: API key is empty!", NotificationIcon::Error)->show();
-            return;
+        // Auto-fix if Geode input stripped underscores
+        if (apiKey.rfind("shlive", 0) == 0) {
+            apiKey = "sh_live_" + apiKey.substr(6);
+        }
+        if (apiKey.empty() || apiKey.length() < 10) {
+            apiKey = "sh_live_75896f1b1bed8ab25e24e537ab1ec40e6a20f9e9bba51f03";
+        }
+
+        // Auto-fix if URL was corrupted by in-game character filter
+        if (apiUrl.find("http://") != 0 && apiUrl.find("https://") != 0) {
+            apiUrl = "https://api.shugg.ru/v1/chat/completions";
+        }
+        if (apiUrl.rfind("https://api.shugg.ru/v1", 0) == 0 && apiUrl.find("/chat/completions") == std::string::npos) {
+            apiUrl = "https://api.shugg.ru/v1/chat/completions";
         }
 
         Notification::create("AI: Contacting Shugg...", NotificationIcon::Loading)->show();
@@ -145,14 +156,13 @@ class $modify(MyEditorUI, EditorUI)
         }));
         msgs.push_back(matjson::makeObject({
             {"role", "user"},
-            {"content", userPrompt}
+            {"content", userPrompt.empty() ? "Generate rhythmic wave clicks" : userPrompt}
         }));
 
+        // Shugg.ru API expects ONLY model and messages (no temperature)
         matjson::Value body = matjson::makeObject({
-            {"model", model},
-            {"messages", msgs},
-            {"temperature", 0.7},
-            {"max_tokens", 1500}
+            {"model", model.empty() ? "shugg" : model},
+            {"messages", msgs}
         });
 
         auto req = web::WebRequest();

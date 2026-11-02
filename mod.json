@@ -165,25 +165,29 @@
 			"name": "AI API Key",
 			"description": "API Key for AI layout generation (Shugg.ru)",
 			"type": "string",
-			"default": "sh_live_75896f1b1bed8ab25e24e537ab1ec40e6a20f9e9bba51f03"
+			"default": "sh_live_75896f1b1bed8ab25e24e537ab1ec40e6a20f9e9bba51f03",
+			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-."
 		},
 		"ai-api-url": {
 			"name": "AI Endpoint URL",
 			"description": "OpenAI-compatible chat completions endpoint",
 			"type": "string",
-			"default": "https://api.shugg.ru/v1/chat/completions"
+			"default": "https://api.shugg.ru/v1/chat/completions",
+			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-./:?=&"
 		},
 		"ai-model": {
 			"name": "AI Model",
 			"description": "Model ID to use (for Shugg use 'shugg')",
 			"type": "string",
-			"default": "shugg"
+			"default": "shugg",
+			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-."
 		},
 		"ai-prompt": {
 			"name": "AI Prompt",
 			"description": "Custom prompt describing the gameplay rhythm and difficulty",
 			"type": "string",
-			"default": "generate an intense sync wave layout with tight clicks at 240 fps"
+			"default": "generate an intense sync wave layout with tight clicks at 240 fps",
+			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-.,!?:;\"'()[]{}/"
 		}
 	},
 	"tags": [
