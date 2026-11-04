@@ -101,8 +101,8 @@ void LayoutGeneratorLayer::buildStart()
     g.previousFrame = 0;
     g.state = state::recording;
 
-    placeCreditText("made with", CCPoint{105.f, 300.f});
-    placeCreditText("layout generator", CCPoint{105.f, 285.f});
+    placeCreditText("made with", CCPoint{45.f, 350.f});
+    placeCreditText("layout generator", CCPoint{45.f, 335.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
@@ -123,8 +123,8 @@ void LayoutGeneratorLayer::buildStartWithAIMacro()
     g.state = state::playing;
     m_usingAIMacro = true;
 
-    placeCreditText("ai generated", CCPoint{105.f, 300.f});
-    placeCreditText("with shugg ai", CCPoint{105.f, 285.f});
+    placeCreditText("ai layout", CCPoint{45.f, 350.f});
+    placeCreditText("shugg ai", CCPoint{45.f, 335.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
@@ -1117,14 +1117,37 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
         float halfHeight = midTrail.rectSize.height / 2.f;
         float clearance = isFramePerfect ? 1.5f : 8.f;
 
-        CCPoint slopeBottomPos = CCPoint{bottomPos.x, midTrail.pos.y - halfHeight - clearance};
-        CCPoint slopeTopPos = CCPoint{topPos.x, midTrail.pos.y + halfHeight + clearance};
+        // Snap X to standard 30x30 Geometry Dash grid (15, 45, 75, 105, 135...)
+        float snapX = std::round((bottomPos.x - 15.f) / 30.f) * 30.f + 15.f;
+
+        // Calculate slope centers on 30-unit grid:
+        // Floor slope center sits below the clearance boundary:
+        float rawBottomY = midTrail.pos.y - halfHeight - clearance - 15.f;
+        float snapBottomY = std::round((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
+
+        // Ceiling slope center sits above the clearance boundary:
+        float rawTopY = midTrail.pos.y + halfHeight + clearance + 15.f;
+        float snapTopY = std::round((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
+
+        CCPoint slopeBottomPos = CCPoint{snapX, snapBottomY};
+        CCPoint slopeTopPos = CCPoint{snapX, snapTopY};
 
         if (bottom)
         {
-            bool distOk = (m_lastSlopeBottomPos.x <= 0.f) || (slopeBottomPos.x - m_lastSlopeBottomPos.x >= 28.f);
-            if (distOk)
+            if (m_lastSlopeBottomPos.x <= 0.f || std::abs(snapX - m_lastSlopeBottomPos.x) >= 28.f)
             {
+                // Fill intermediate column if any was skipped due to lag
+                if (m_lastSlopeBottomPos.x > 0.f && snapX > m_lastSlopeBottomPos.x + 35.f)
+                {
+                    for (float interX = m_lastSlopeBottomPos.x + 30.f; interX < snapX; interX += 30.f)
+                    {
+                        float factor = (interX - m_lastSlopeBottomPos.x) / (snapX - m_lastSlopeBottomPos.x);
+                        float interY = m_lastSlopeBottomPos.y + factor * (snapBottomY - m_lastSlopeBottomPos.y);
+                        float snapInterY = std::round((interY - 15.f) / 30.f) * 30.f + 15.f;
+                        placeSlopeInBounds(CCPoint{interX, snapInterY}, midTrail, false, isRising);
+                    }
+                }
+
                 placeSlopeInBounds(slopeBottomPos, midTrail, false, isRising);
                 m_lastWaveRisingBottom = isRising;
                 m_lastSlopeBottomPos = slopeBottomPos;
@@ -1133,9 +1156,20 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
         if (top)
         {
-            bool distOk = (m_lastSlopeTopPos.x <= 0.f) || (slopeTopPos.x - m_lastSlopeTopPos.x >= 28.f);
-            if (distOk)
+            if (m_lastSlopeTopPos.x <= 0.f || std::abs(snapX - m_lastSlopeTopPos.x) >= 28.f)
             {
+                // Fill intermediate column if any was skipped due to lag
+                if (m_lastSlopeTopPos.x > 0.f && snapX > m_lastSlopeTopPos.x + 35.f)
+                {
+                    for (float interX = m_lastSlopeTopPos.x + 30.f; interX < snapX; interX += 30.f)
+                    {
+                        float factor = (interX - m_lastSlopeTopPos.x) / (snapX - m_lastSlopeTopPos.x);
+                        float interY = m_lastSlopeTopPos.y + factor * (snapTopY - m_lastSlopeTopPos.y);
+                        float snapInterY = std::round((interY - 15.f) / 30.f) * 30.f + 15.f;
+                        placeSlopeInBounds(CCPoint{interX, snapInterY}, midTrail, true, isRising);
+                    }
+                }
+
                 placeSlopeInBounds(slopeTopPos, midTrail, true, isRising);
                 m_lastWaveRisingTop = isRising;
                 m_lastSlopeTopPos = slopeTopPos;
@@ -1200,19 +1234,61 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
 void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising)
 {
-    if (!isOutOfBounds(pos.y, 30.f, trail) && getObjectNearPoint(pos, 22.f, ObjectId::SLOPE) == nullptr)
+    auto mod = Mod::get();
+    bool corridorFill = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+
+    if (!isOutOfBounds(pos.y, 30.f, trail) && getObjectNearPoint(pos, 14.f, ObjectId::SLOPE) == nullptr)
     {
         if (auto slope = createObject(ObjectId::SLOPE, pos))
         {
             slope->setFlipX(false);
             slope->setFlipY(false);
+
+            // Correct mathematical 45-degree slope orientation in Cocos2d-x / GD:
+            // Rising wave (going UP-RIGHT):
+            //   Floor surface faces UP-LEFT (rotation 0)
+            //   Ceiling surface faces DOWN-RIGHT (rotation 180)
+            // Falling wave (going DOWN-RIGHT):
+            //   Floor surface faces UP-RIGHT (rotation 90)
+            //   Ceiling surface faces DOWN-LEFT (rotation -90)
             if (isRising)
             {
-                slope->setRotation(isCeiling ? 90.f : -90.f);
+                slope->setRotation(isCeiling ? 180.f : 0.f);
             }
             else
             {
-                slope->setRotation(isCeiling ? 180.f : 0.f);
+                slope->setRotation(isCeiling ? -90.f : 90.f);
+            }
+
+            // Professional block design: fill solid cavern blocks above ceiling and below floor
+            if (corridorFill)
+            {
+                if (!isCeiling)
+                {
+                    // Floor: fill downward to bounds floor
+                    for (float fy = pos.y - 30.f; fy >= m_boundsFloor - 15.f; fy -= 30.f)
+                    {
+                        CCPoint fillPos{pos.x, fy};
+                        if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                            getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr)
+                        {
+                            createObject(ObjectId::BLOCK, fillPos);
+                        }
+                    }
+                }
+                else
+                {
+                    // Ceiling: fill upward to bounds ceiling
+                    for (float cy = pos.y + 30.f; cy <= m_boundsCeil + 15.f; cy += 30.f)
+                    {
+                        CCPoint fillPos{pos.x, cy};
+                        if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                            getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr)
+                        {
+                            createObject(ObjectId::BLOCK, fillPos);
+                        }
+                    }
+                }
             }
         }
     }

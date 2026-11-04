@@ -109,6 +109,12 @@
 			"type": "bool",
 			"default": true
 		},
+		"corridor-fill": {
+			"name": "Corridor Block Filling",
+			"description": "Fills solid cavern blocks above and below wave slopes for complete, professional level design.",
+			"type": "bool",
+			"default": true
+		},
 		"wave-spikes": {
 			"name": "Spikes on wave slopes",
 			"description": "Places additional hazard spikes along the wave corridor.",
