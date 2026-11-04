@@ -6,6 +6,7 @@
 #include "LayoutGenerator/LayoutGeneratorLayer.hpp"
 #include "LevelEditorLayer.cpp"
 #include "Macro/Macro.hpp"
+#include "AILayoutPopup.hpp"
 
 using namespace geode::prelude;
 
@@ -62,35 +63,37 @@ class $modify(MyEditorUI, EditorUI)
         if (!EditorUI::init(editorLayer))
             return false;
 
-        auto buildSprite = ButtonSprite::createWithSpriteFrameName("button.png"_spr);
-        buildSprite->setScale(0.83f);
+        // Build button: native green circular badge with hammer icon
+        auto buildSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_hammerIcon_001.png", 0.9f, CircleBaseColor::Green);
+        buildSprite->setScale(0.72f);
         auto buildButton = CCMenuItemSpriteExtra::create(
             buildSprite,
             getBuilder(),
             menu_selector(LayoutGeneratorLayer::onBuildButton));
         buildButton->setID("build-button"_spr);
 
-        // AI button: sleek purple button in playback-menu
-        auto aiSprite = ButtonSprite::create("AI", "bigFont.fnt", "GJ_button_04.png", 0.6f);
-        aiSprite->setScale(0.83f);
+        // AI button: native magenta circular badge with magic wand icon
+        auto aiSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_sMagicIcon_001.png", 1.0f, CircleBaseColor::Pink);
+        aiSprite->setScale(0.72f);
         auto aiButton = CCMenuItemSpriteExtra::create(
             aiSprite,
             this,
-            menu_selector(MyEditorUI::onAIGenerate));
+            menu_selector(MyEditorUI::onOpenAIPopup));
         aiButton->setID("ai-button"_spr);
 
-        // Bot button: sleek toggle button in playback-menu
-        auto botSprite = ButtonSprite::create("Bot", "bigFont.fnt", "GJ_button_02.png", 0.6f);
-        botSprite->setScale(0.83f);
+        // Bot button: native cyan circular badge with play icon
+        auto botSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_playEditorBtn_001.png", 0.85f, CircleBaseColor::Cyan);
+        botSprite->setScale(0.72f);
         auto botButton = CCMenuItemSpriteExtra::create(
             botSprite,
             this,
             menu_selector(MyEditorUI::onToggleBot));
         botButton->setID("bot-button"_spr);
 
+        // Settings button: native dark aqua circular badge with gear icon
         // @geode-ignore(unknown-resource)
-        auto settingsSprite = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 1.f, CircleBaseColor::DarkAqua);
-        settingsSprite->setScale(0.83f);
+        auto settingsSprite = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 0.85f, CircleBaseColor::DarkAqua);
+        settingsSprite->setScale(0.72f);
         auto settingsButton = CCMenuItemSpriteExtra::create(
             settingsSprite,
             getBuilder(),
@@ -111,6 +114,15 @@ class $modify(MyEditorUI, EditorUI)
         }
 
         return true;
+    }
+
+    void onOpenAIPopup(CCObject*) {
+        auto popup = AILayoutPopup::create([this]() {
+            this->onAIGenerate(nullptr);
+        });
+        if (popup) {
+            popup->show();
+        }
     }
 
     void onToggleBot(CCObject*) {
