@@ -189,11 +189,11 @@
 		},
 		"ai-min-hold": {
 			"name": "Min Click Duration (Frames)",
-			"description": "Minimum frames to hold/release a click at 240 FPS (higher = easier)",
+			"description": "Minimum frames between inputs at 240 FPS (higher = easier/longer)",
 			"type": "int",
 			"default": 35,
-			"min": 12,
-			"max": 120,
+			"min": 15,
+			"max": 150,
 			"control": {
 				"slider": true,
 				"arrows": true,
@@ -202,11 +202,11 @@
 		},
 		"ai-max-hold": {
 			"name": "Max Click Duration (Frames)",
-			"description": "Maximum frames to hold a slope before releasing (higher = wider slopes)",
+			"description": "Maximum frames between inputs (higher = wider/longer slopes)",
 			"type": "int",
-			"default": 75,
+			"default": 80,
 			"min": 25,
-			"max": 200,
+			"max": 250,
 			"control": {
 				"slider": true,
 				"arrows": true,
@@ -214,16 +214,16 @@
 			}
 		},
 		"ai-clicks-count": {
-			"name": "Clicks Count",
-			"description": "Number of input clicks the AI will generate (section length)",
+			"name": "Layout Length (Clicks/Inputs)",
+			"description": "Number of input events (clicks & releases). 60 ≈ 15s, 120 ≈ 30s, 240 ≈ 60s",
 			"type": "int",
-			"default": 24,
-			"min": 8,
-			"max": 100,
+			"default": 120,
+			"min": 10,
+			"max": 500,
 			"control": {
 				"slider": true,
 				"arrows": true,
-				"arrow-step": 4
+				"arrow-step": 10
 			}
 		},
 		"ai-api-key": {

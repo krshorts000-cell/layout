@@ -143,32 +143,39 @@ class $modify(MyEditorUI, EditorUI)
         std::string difficulty = mod->hasSetting("ai-difficulty") ? mod->getSettingValue<std::string>("ai-difficulty") : "Medium";
         std::string style = mod->hasSetting("ai-gameplay-style") ? mod->getSettingValue<std::string>("ai-gameplay-style") : "Flow & Rhythmic";
         int minHold = mod->hasSetting("ai-min-hold") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-min-hold")) : 35;
-        int maxHold = mod->hasSetting("ai-max-hold") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-max-hold")) : 75;
-        int clicksCount = mod->hasSetting("ai-clicks-count") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-clicks-count")) : 24;
+        int maxHold = mod->hasSetting("ai-max-hold") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-max-hold")) : 80;
+        int clicksCount = mod->hasSetting("ai-clicks-count") ? static_cast<int>(mod->getSettingValue<int64_t>("ai-clicks-count")) : 120;
         float bpm = mod->hasSetting("bpm") ? static_cast<float>(mod->getSettingValue<double>("bpm")) : 128.f;
 
-        Notification::create(fmt::format("AI: Generating {} ({})...", difficulty, style), NotificationIcon::Loading)->show();
+        if (clicksCount < 10) clicksCount = 10;
+        if (clicksCount > 500) clicksCount = 500;
+        if (minHold < 15) minHold = 15;
+        if (maxHold < minHold + 10) maxHold = minHold + 35;
+
+        Notification::create(fmt::format("AI: Generating {} inputs ({}, {})...", clicksCount, difficulty, style), NotificationIcon::Loading)->show();
 
         std::string systemPrompt = fmt::format(
             "You are an expert Geometry Dash level layout designer at 240 FPS (TPS).\n"
-            "Generate a click sequence matching these player parameters:\n"
+            "Generate a long, playable, high quality click sequence for Geometry Dash.\n"
+            "CRITICAL CONSTRAINTS:\n"
+            "- Total inputs count: exactly {}\n"
             "- Target Difficulty: {}\n"
             "- Movement Style: {}\n"
-            "- Minimum hold/release duration: {} frames (strictly never switch faster than this)\n"
-            "- Maximum hold duration: {} frames\n"
-            "- Total inputs count: exactly {}\n"
             "- Song BPM: ~{:.0f}\n"
-            "RULES FOR PLAYABILITY:\n"
-            "1. For Wave mode: Hold duration (down=true) between {} and {} frames. Release duration (down=false) between {} and {} frames.\n"
-            "2. For Cube mode: Consecutive jumps must be at least 55-100 frames apart so the cube can land.\n"
-            "3. Strictly enforce difficulty: if Easy/Medium, use wider slopes and fewer switches; if Hard/Demon, use more rhythmic changes.\n"
-            "4. Output ONLY a raw valid JSON array: [{{\"frame\": 20, \"down\": true}}, ...]. Strictly increasing frame numbers. No markdown, no text.",
-            difficulty, style, minHold, maxHold, clicksCount, bpm, minHold, maxHold, minHold, maxHold
+            "- Minimum gap between consecutive inputs: {} frames\n"
+            "- Maximum gap between consecutive inputs: {} frames\n"
+            "- CRITICAL RULE: Each item's 'frame' MUST be at least {} frames greater than the previous item's 'frame' (e.g. 0, {}, {}, ...). "
+            "NEVER increment by 1 or 2 frames! The level must span multiple thousands of frames for full gameplay length!\n"
+            "- Inputs must strictly alternate: down=true, down=false, down=true, down=false...\n"
+            "Output ONLY a raw valid JSON array: [{{\"frame\": 0, \"down\": true}}, ...]. Strictly increasing frame numbers. No markdown, no text.",
+            clicksCount, difficulty, style, bpm, minHold, maxHold, minHold, minHold + 15, minHold * 2 + 30
         );
 
         std::string effectivePrompt = userPrompt;
         if (effectivePrompt.empty() || effectivePrompt == "generate an intense sync wave layout with tight clicks at 240 fps") {
-            effectivePrompt = fmt::format("Generate a {} difficulty section in '{}' style synced to ~{:.0f} BPM.", difficulty, style, bpm);
+            effectivePrompt = fmt::format("Generate an extensive, long {} difficulty section with exactly {} inputs in '{}' style synced to ~{:.0f} BPM.", difficulty, clicksCount, style, bpm);
+        } else {
+            effectivePrompt = fmt::format("{} (CRITICAL: generate an extensive, long sequence of exactly {} inputs with at least {} frames gap between inputs)", userPrompt, clicksCount, minHold);
         }
 
         std::vector<matjson::Value> msgs;
@@ -181,10 +188,12 @@ class $modify(MyEditorUI, EditorUI)
             {"content", effectivePrompt}
         }));
 
-        // Shugg.ru API expects ONLY model and messages (no temperature)
+        // Shugg.ru API expects model, messages and max_tokens
+        int maxTokens = std::clamp(clicksCount * 30, 2048, 8000);
         matjson::Value body = matjson::makeObject({
-            {"model", model.empty() ? "shugg" : model},
-            {"messages", msgs}
+            {"model", (model.empty() || model == "shupp") ? "shugg" : model},
+            {"messages", msgs},
+            {"max_tokens", maxTokens}
         });
 
         auto req = web::WebRequest();
@@ -195,7 +204,7 @@ class $modify(MyEditorUI, EditorUI)
         m_fields->m_aiTask.spawn(
             "AI Macro Generation",
             req.post(apiUrl),
-            [this](web::WebResponse res) {
+            [this, minHold, maxHold](web::WebResponse res) {
                 if (!res.ok()) {
                     log::error("[AI] Request failed: code {}, body {}", res.code(), res.string().unwrapOr(""));
                     Notification::create(fmt::format("AI Request failed ({})", res.code()), NotificationIcon::Error)->show();
@@ -240,13 +249,32 @@ class $modify(MyEditorUI, EditorUI)
                 auto &g = Global::get();
                 g.macro.inputs.clear();
 
-                for (auto &item : inputsList) {
+                int currentCalculatedFrame = 0;
+                bool expectedDown = true;
+
+                for (size_t i = 0; i < inputsList.size(); ++i) {
+                    auto &item = inputsList[i];
                     if (!item.isObject()) continue;
                     int frame = item["frame"].asInt().unwrapOr(-1);
-                    bool down = item["down"].asBool().unwrapOr(false);
-                    if (frame >= 0) {
-                        g.macro.inputs.push_back(input(frame, 1, false, down));
+                    bool down = item.contains("down") ? item["down"].asBool().unwrapOr(expectedDown) : expectedDown;
+
+                    if (frame < 0) continue;
+
+                    // Defensive auto-healing: guarantee proper rhythmic spacing even if AI returned small deltas
+                    if (g.macro.inputs.empty()) {
+                        currentCalculatedFrame = std::max(0, frame);
+                    } else {
+                        int delta = frame - g.macro.inputs.back().frame;
+                        if (delta < minHold) {
+                            int rhythmicStep = minHold + ((maxHold - minHold) > 0 ? (static_cast<int>(i) * 17) % (maxHold - minHold + 1) : 0);
+                            currentCalculatedFrame = g.macro.inputs.back().frame + rhythmicStep;
+                        } else {
+                            currentCalculatedFrame = frame;
+                        }
                     }
+
+                    g.macro.inputs.push_back(input(currentCalculatedFrame, 1, false, down));
+                    expectedDown = !down;
                 }
 
                 if (g.macro.inputs.empty()) {
@@ -257,7 +285,8 @@ class $modify(MyEditorUI, EditorUI)
                 std::stable_sort(g.macro.inputs.begin(), g.macro.inputs.end());
                 Macro::resetPlayback();
 
-                Notification::create(fmt::format("AI: Loaded {} clicks! Building layout...", g.macro.inputs.size()), NotificationIcon::Success)->show();
+                float durationSec = g.macro.inputs.empty() ? 0.f : (g.macro.inputs.back().frame / 240.f);
+                Notification::create(fmt::format("AI: Loaded {} clicks ({:.1f}s)! Building...", g.macro.inputs.size(), durationSec), NotificationIcon::Success)->show();
 
                 if (auto builder = getBuilder()) {
                     builder->buildStartWithAIMacro();
