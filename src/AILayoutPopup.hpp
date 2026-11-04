@@ -28,12 +28,8 @@ protected:
             bool active = (m_selectedDifficulty == diffName);
             ccColor3B col = active ? ccc3(255, 255, 255) : ccc3(120, 120, 120);
             btn->setColor(col);
-            if (auto img = btn->getNormalImage()) {
-                if (auto bs = typeinfo_cast<ButtonSprite*>(img)) {
-                    bs->setColor(col);
-                } else {
-                    img->setColor(col);
-                }
+            if (auto rgba = typeinfo_cast<CCRGBAProtocol*>(btn->getNormalImage())) {
+                rgba->setColor(col);
             }
             btn->setScale(active ? 0.82f : 0.72f);
         }
@@ -44,12 +40,8 @@ protected:
             bool active = (m_selectedStyle == styleName);
             ccColor3B col = active ? ccc3(255, 255, 255) : ccc3(120, 120, 120);
             btn->setColor(col);
-            if (auto img = btn->getNormalImage()) {
-                if (auto bs = typeinfo_cast<ButtonSprite*>(img)) {
-                    bs->setColor(col);
-                } else {
-                    img->setColor(col);
-                }
+            if (auto rgba = typeinfo_cast<CCRGBAProtocol*>(btn->getNormalImage())) {
+                rgba->setColor(col);
             }
             btn->setScale(active ? 0.82f : 0.72f);
         }
