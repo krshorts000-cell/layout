@@ -610,24 +610,31 @@ void LayoutGeneratorLayer::update(float dt)
             // In Live Builder mode for grounded gamemodes, updateLiveGroundedObstacles handles ground and jump obstacles.
             // Avoid duplicate/overlapping spike placements by skipping placeSpikeBoundary for grounded Live Builder.
             std::string patternMode = mod->hasSetting("layout-pattern-mode") ? 
-                mod->getSettingValue<std::string>("layout-pattern-mode") : "Turn Pillars";
+                mod->getSettingValue<std::string>("layout-pattern-mode") : "Spike Envelope";
             bool isWaveMode = (pd->state & PoolState::GAMEMODE_WAVE) != 0;
-            bool useTurnPillars = isWaveMode && (patternMode == "Turn Pillars");
 
-            if (useTurnPillars)
+            if (isWaveMode)
             {
-                bool isClickingNow = pd->isClicking();
-                bool justClicked = isClickingNow && !m_isClickingLastFrame;
-                bool justReleased = !isClickingNow && m_isClickingLastFrame;
+                if (patternMode == "Turn Pillars")
+                {
+                    bool isClickingNow = pd->isClicking();
+                    bool justClicked = isClickingNow && !m_isClickingLastFrame;
+                    bool justReleased = !isClickingNow && m_isClickingLastFrame;
 
-                float clearance = isFramePerfect ? 1.5f : obstacleDist;
-                if (justClicked)
-                {
-                    placeClickPillar(pd->pos, midTrail, clearance);
+                    float clearance = isFramePerfect ? 1.5f : obstacleDist;
+                    if (justClicked)
+                    {
+                        placeClickPillar(pd->pos, midTrail, clearance);
+                    }
+                    else if (justReleased)
+                    {
+                        placeReleasePillar(pd->pos, midTrail, clearance);
+                    }
                 }
-                else if (justReleased)
+                else
                 {
-                    placeReleasePillar(pd->pos, midTrail, clearance);
+                    // Default: continuous Spike Envelope wrapping the entire wave path
+                    updateWaveSpikeEnvelope(pd, midTrail);
                 }
             }
             else if (!(isLiveBuilder && isGroundedMode))
@@ -1524,6 +1531,163 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
     }
 }
 
+void LayoutGeneratorLayer::updateWaveSpikeEnvelope(PlayerData* pd, const PlayerTrailData& midTrail)
+{
+    auto mod = Mod::get();
+    if (!mod->getSettingValue<bool>("spike-boundary-enabled"))
+        return;
+
+    int windowFrames = mod->hasSetting("timing-window-frames") ? 
+        static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
+    if (windowFrames < 1) windowFrames = 1;
+    bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
+    if (isFramePerfect) windowFrames = 1;
+
+    // Horizontal speed in units/frame
+    float vx = std::max(8.0f, std::abs(pd->velScaled.x));
+    
+    // Exact frame timing window:
+    // With K frames tolerance, clicking K frames late deviates by K * vx.
+    // So leeway = (windowFrames / 2.0f) * vx ensures that being windowFrames off results in death.
+    float leeway = (windowFrames / 2.0f) * vx;
+    float safeBuffer = isFramePerfect ? 1.5f : 3.0f;
+    float clearance = leeway + safeBuffer;
+
+    float halfHeight = midTrail.rectSize.height / 2.0f;
+    const float spikeTipDist = 13.0f; // Distance from center to spike tip in GD
+
+    // Placement position: scan 1 frame ahead of player
+    float spikeX = pd->pos.x + pd->velScaled.x;
+
+    // Check spacing: space spikes ~24 units apart horizontally
+    if (m_lastSpikeBottomPos.x > 0.f && (spikeX - m_lastSpikeBottomPos.x) < 24.f)
+    {
+        return;
+    }
+
+    // Determine target Y coordinates from player's current wave position
+    float targetFloorY = pd->pos.y - halfHeight - clearance - spikeTipDist;
+    float targetCeilY = pd->pos.y + halfHeight + clearance + spikeTipDist;
+
+    // Clamp within bounds
+    if (targetFloorY < m_boundsFloor + 15.f)
+        targetFloorY = m_boundsFloor + 15.f;
+    if (targetCeilY > m_boundsCeil - 15.f)
+        targetCeilY = m_boundsCeil - 15.f;
+
+    CCPoint currFloorPos{spikeX, targetFloorY};
+    CCPoint currCeilPos{spikeX, targetCeilY};
+
+    bool corridorFill = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+    int maxDepth = mod->hasSetting("corridor-fill-depth") ? 
+        static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
+    if (maxDepth < 1) maxDepth = 1;
+
+    const float verticalStep = 18.0f;
+
+    // 1. PLACE FLOOR SPIKE
+    if (isSafeToPlace(ObjectId::SPIKE, currFloorPos, false, safeBuffer))
+    {
+        if (auto spike = createObject(ObjectId::SPIKE, currFloorPos))
+        {
+            spike->setFlipY(false);
+
+            // Vertical filling between consecutive floor spikes so there are NO GAPS:
+            if (m_lastSpikeBottomPos.x > 0.f)
+            {
+                // When wave ascends: currFloorPos.y > lastFloorPos.y
+                CCPoint fillPos = currFloorPos;
+                while (fillPos.y > m_lastSpikeBottomPos.y + verticalStep)
+                {
+                    fillPos.y -= verticalStep;
+                    if (isSafeToPlace(ObjectId::SPIKE, fillPos, false, safeBuffer))
+                    {
+                        if (auto s = createObject(ObjectId::SPIKE, fillPos)) s->setFlipY(false);
+                    }
+                }
+                // When wave descends: currFloorPos.y < lastFloorPos.y
+                fillPos = m_lastSpikeBottomPos;
+                while (fillPos.y > currFloorPos.y + verticalStep)
+                {
+                    fillPos.y -= verticalStep;
+                    if (isSafeToPlace(ObjectId::SPIKE, fillPos, false, safeBuffer))
+                    {
+                        if (auto s = createObject(ObjectId::SPIKE, fillPos)) s->setFlipY(false);
+                    }
+                }
+            }
+
+            // Backing blocks behind floor spikes (downward)
+            if (corridorFill)
+            {
+                for (int d = 1; d <= maxDepth; ++d)
+                {
+                    float by = currFloorPos.y - 30.f * d;
+                    if (by < m_boundsFloor - 15.f) break;
+                    CCPoint blockPos{spikeX, by};
+                    if (getObjectNearPoint(blockPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                        isSafeToPlace(ObjectId::BLOCK, blockPos, false, 2.0f))
+                    {
+                        createObject(ObjectId::BLOCK, blockPos);
+                    }
+                }
+            }
+        }
+        m_lastSpikeBottomPos = currFloorPos;
+    }
+
+    // 2. PLACE CEILING SPIKE
+    if (isSafeToPlace(ObjectId::SPIKE, currCeilPos, true, safeBuffer))
+    {
+        if (auto spike = createObject(ObjectId::SPIKE, currCeilPos))
+        {
+            spike->setFlipY(true);
+
+            // Vertical filling between consecutive ceiling spikes so there are NO GAPS:
+            if (m_lastSpikeTopPos.x > 0.f)
+            {
+                // When wave ascends: currCeilPos.y > lastCeilPos.y
+                CCPoint fillPos = m_lastSpikeTopPos;
+                while (fillPos.y < currCeilPos.y - verticalStep)
+                {
+                    fillPos.y += verticalStep;
+                    if (isSafeToPlace(ObjectId::SPIKE, fillPos, true, safeBuffer))
+                    {
+                        if (auto s = createObject(ObjectId::SPIKE, fillPos)) s->setFlipY(true);
+                    }
+                }
+                // When wave descends: currCeilPos.y < lastCeilPos.y
+                fillPos = currCeilPos;
+                while (fillPos.y < m_lastSpikeTopPos.y - verticalStep)
+                {
+                    fillPos.y += verticalStep;
+                    if (isSafeToPlace(ObjectId::SPIKE, fillPos, true, safeBuffer))
+                    {
+                        if (auto s = createObject(ObjectId::SPIKE, fillPos)) s->setFlipY(true);
+                    }
+                }
+            }
+
+            // Backing blocks behind ceiling spikes (upward)
+            if (corridorFill)
+            {
+                for (int d = 1; d <= maxDepth; ++d)
+                {
+                    float by = currCeilPos.y + 30.f * d;
+                    if (by > m_boundsCeil + 15.f) break;
+                    CCPoint blockPos{spikeX, by};
+                    if (getObjectNearPoint(blockPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                        isSafeToPlace(ObjectId::BLOCK, blockPos, false, 2.0f))
+                    {
+                        createObject(ObjectId::BLOCK, blockPos);
+                    }
+                }
+            }
+        }
+        m_lastSpikeTopPos = currCeilPos;
+    }
+}
+
 void LayoutGeneratorLayer::placeClickPillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance)
 {
     auto mod = Mod::get();
@@ -1701,10 +1865,11 @@ bool LayoutGeneratorLayer::isSafeToPlace(int objectId, CCPoint pos, bool flipY, 
 void LayoutGeneratorLayer::placeSpikeInBounds(CCPoint pos, const PlayerTrailData &trail, bool flipY)
 {
     auto mod = Mod::get();
-    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+    bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
+    float safeClearance = isFramePerfect ? 1.5f : 3.0f;
 
-    // Strict Hitbox Verification: never place a spike that would hit or be closer than obstacleDist to the player!
-    if (!isSafeToPlace(ObjectId::SPIKE, pos, flipY, obstacleDist))
+    // Strict Hitbox Verification: never place a spike that would hit or be closer than safeClearance to the player!
+    if (!isSafeToPlace(ObjectId::SPIKE, pos, flipY, safeClearance))
     {
         return;
     }

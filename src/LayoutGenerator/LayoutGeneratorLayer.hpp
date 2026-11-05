@@ -97,6 +97,7 @@ protected:
     void update(float dt) override;
 
     void updateLiveGroundedObstacles(PlayerData* pd);
+    void updateWaveSpikeEnvelope(PlayerData* pd, const PlayerTrailData& midTrail);
 
     // creates an object in the LevelEditorLayer and adds it to m_placedObjectUniqueIds
     GameObject *createObject(int key, CCPoint position);
