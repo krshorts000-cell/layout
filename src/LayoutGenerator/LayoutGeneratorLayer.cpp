@@ -493,10 +493,29 @@ void LayoutGeneratorLayer::update(float dt)
         PlayerTrailData midTrail = projectedTrail;
         bool closeTheSpiderGap = isFramePerfect ? true : false;
 
+        bool isGroundedMode = (pd->gamemode == PoolState::GAMEMODE_CUBE || pd->gamemode == PoolState::GAMEMODE_ROBOT);
+        bool isUpsideDown = (pd->state & PoolState::GRAVITY_REVERSE) || (pd->player && pd->player->m_isUpsideDown);
+
         if (pd->state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS))
         {
-            spikeBottom = true;
-            spikeTop = true;
+            if (isGroundedMode)
+            {
+                if (isUpsideDown)
+                {
+                    spikeTop = true;
+                    spikeBottom = false;
+                }
+                else
+                {
+                    spikeBottom = true;
+                    spikeTop = false; // Strictly prevent ceiling spikes above normal cube/robot
+                }
+            }
+            else
+            {
+                spikeBottom = true;
+                spikeTop = true;
+            }
         }
 
         float initEvilSpikeMargin = (projectedTrail.rectSize.height + spikeSize.height) / 2.f;
@@ -523,7 +542,10 @@ void LayoutGeneratorLayer::update(float dt)
                 (trail.isUpsideDown() && trail.velUnscaled.y >= 15.f) ||
                 // spider
                 (trail.fish && trail.fish->tags & PoolTag::SPIDER))
-                spikeBottom = true;
+            {
+                if (!isGroundedMode || !trail.isUpsideDown())
+                    spikeBottom = true;
+            }
             if (
                 // airborne or flying or ball/spider
                 trail.state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS) ||
@@ -531,7 +553,10 @@ void LayoutGeneratorLayer::update(float dt)
                 (!trail.isUpsideDown() && trail.velUnscaled.y <= -15.f) ||
                 // spider
                 (trail.fish && trail.fish->tags & PoolTag::SPIDER))
-                spikeTop = true;
+            {
+                if (!isGroundedMode || trail.isUpsideDown())
+                    spikeTop = true;
+            }
 
             // check for spider elements that would let the player slip through the gaps
             if (trail.pos.x > pd->pos.x - 96.f && trail.pos.x < spikeX)
@@ -580,18 +605,28 @@ void LayoutGeneratorLayer::update(float dt)
             if (yMax < midTrail.pos.y + safeClearance)
                 yMax = midTrail.pos.y + safeClearance;
 
-            placeSpikeBoundary(
-                spikeBottom,
-                CCPoint{spikeX, yMin},
-                spikeTop,
-                CCPoint{spikeX, yMax},
-                midTrail,
-                (isFramePerfect || spikeMargin <= 0.f)
-                    ? 0.f
-                    : (closeTheSpiderGap
-                           ? 6.f
-                           : playerSize.width) +
-                          6.f - pd->velScaled.x);
+            if (isGroundedMode && !isUpsideDown)
+            {
+                spikeTop = false; // Never place ceiling spikes above running/jumping cube
+            }
+
+            // In Live Builder mode for grounded gamemodes, updateLiveGroundedObstacles handles ground and jump obstacles.
+            // Avoid duplicate/overlapping spike placements by skipping placeSpikeBoundary for grounded Live Builder.
+            if (!(isLiveBuilder && isGroundedMode))
+            {
+                placeSpikeBoundary(
+                    spikeBottom,
+                    CCPoint{spikeX, yMin},
+                    spikeTop,
+                    CCPoint{spikeX, yMax},
+                    midTrail,
+                    (isFramePerfect || spikeMargin <= 0.f)
+                        ? 0.f
+                        : (closeTheSpiderGap
+                               ? 6.f
+                               : playerSize.width) +
+                              6.f - pd->velScaled.x);
+            }
         }
     }
 
