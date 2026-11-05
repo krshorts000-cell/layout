@@ -1338,18 +1338,18 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
         float frameClearance = (windowFrames / 2.f) * vx;
         float halfHeight = midTrail.rectSize.height / 2.f;
         float clearance = isFramePerfect ? 1.5f : frameClearance;
+        if (clearance < 3.0f) clearance = 3.0f;
 
         // Snap X to standard 30x30 Geometry Dash grid (15, 45, 75, 105, 135...)
         float snapX = std::round((bottomPos.x - 15.f) / 30.f) * 30.f + 15.f;
 
-        // Calculate slope centers on 30-unit grid:
-        // Floor slope center sits below the clearance boundary:
+        // Safe directional rounding: floor downward for bottom, ceil upward for top
         float rawBottomY = midTrail.pos.y - halfHeight - clearance - 15.f;
-        float snapBottomY = std::round((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
+        float snapBottomY = std::floor((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
 
         // Ceiling slope center sits above the clearance boundary:
         float rawTopY = midTrail.pos.y + halfHeight + clearance + 15.f;
-        float snapTopY = std::round((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
+        float snapTopY = std::ceil((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
 
         CCPoint slopeBottomPos = CCPoint{snapX, snapBottomY};
         CCPoint slopeTopPos = CCPoint{snapX, snapTopY};
@@ -1365,7 +1365,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
                     {
                         float factor = (interX - m_lastSlopeBottomPos.x) / (snapX - m_lastSlopeBottomPos.x);
                         float interY = m_lastSlopeBottomPos.y + factor * (snapBottomY - m_lastSlopeBottomPos.y);
-                        float snapInterY = std::round((interY - 15.f) / 30.f) * 30.f + 15.f;
+                        float snapInterY = std::floor((interY - 15.f) / 30.f) * 30.f + 15.f;
                         placeSlopeInBounds(CCPoint{interX, snapInterY}, midTrail, false, isRising);
                     }
                 }
@@ -1387,7 +1387,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
                     {
                         float factor = (interX - m_lastSlopeTopPos.x) / (snapX - m_lastSlopeTopPos.x);
                         float interY = m_lastSlopeTopPos.y + factor * (snapTopY - m_lastSlopeTopPos.y);
-                        float snapInterY = std::round((interY - 15.f) / 30.f) * 30.f + 15.f;
+                        float snapInterY = std::ceil((interY - 15.f) / 30.f) * 30.f + 15.f;
                         placeSlopeInBounds(CCPoint{interX, snapInterY}, midTrail, true, isRising);
                     }
                 }
