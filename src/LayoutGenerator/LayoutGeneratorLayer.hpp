@@ -50,6 +50,14 @@ protected:
 
     CCPoint m_lastSpikeTopPos;
 
+    CCPoint m_lastSlopeBottomPos;
+
+    CCPoint m_lastSlopeTopPos;
+
+    bool m_lastWaveRisingBottom = false;
+
+    bool m_lastWaveRisingTop = false;
+
     int m_placeAgainTimer = -1;
 
     std::unordered_set<int> m_placedObjectUniqueIds;
@@ -66,18 +74,29 @@ protected:
 
     float m_tapBalance = 0.f;
 
+    // Live Route Builder variables
+    float m_lastLiveGroundX = -9999.f;
+    float m_lastLiveGroundY = 105.f;
+    float m_jumpArcPeakY = 0.f;
+    bool m_wasGroundedLastFrame = true;
+    float m_jumpArcStartX = 0.f;
+    float m_jumpArcStartY = 0.f;
+    float m_jumpGroundY = 105.f;
+
+public:
+    void buildStart();
+    void buildStartWithAIMacro();
+    void buildStop();
+    bool m_usingAIMacro = false;
+
 protected:
     bool init() override;
 
     void reset();
 
-    // start building
-    void buildStart();
-
-    // stop building (via the EditorUI, which later calls playtestStopped)
-    void buildStop();
-
     void update(float dt) override;
+
+    void updateLiveGroundedObstacles(PlayerData* pd);
 
     // creates an object in the LevelEditorLayer and adds it to m_placedObjectUniqueIds
     GameObject *createObject(int key, CCPoint position);
@@ -98,6 +117,8 @@ protected:
 
     void placeLabel(std::string text, CCPoint pos);
 
+    void sendClick(bool hold);
+
     void placeSpikeBoundary(
         bool bottom,
         CCPoint bottomPos,
@@ -108,7 +129,16 @@ protected:
 
     void placeSpikeInBounds(CCPoint pos, const PlayerTrailData &trail, bool flipY);
 
+    void placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising);
+
+    void placeClickPillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance);
+    void placeReleasePillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance);
+
     bool doesRectInterfereWithTrail(CCRect rect, float playerX, bool isBlock, bool isMini);
+
+    bool isSafeToPlace(int objectId, CCPoint pos, bool flipY, float clearance);
+
+    CCRect getPlayerHitboxAt(const PlayerTrailData &trail, float safeMargin = 0.f);
 
     void fillSpiderTrail(CCPoint pos);
 
@@ -125,11 +155,11 @@ protected:
 public:
     bool getIsBuilding();
 
-    void buildStartWithAIMacro();
-
     void onBuildButton(CCObject *);
 
     void onSettingsButton(CCObject *);
 
     void playtestStopped();
+
+    void onExit() override;
 };
