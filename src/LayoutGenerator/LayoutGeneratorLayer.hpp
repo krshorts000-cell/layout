@@ -132,6 +132,10 @@ protected:
 
     bool doesRectInterfereWithTrail(CCRect rect, float playerX, bool isBlock, bool isMini);
 
+    bool isSafeToPlace(int objectId, CCPoint pos, bool flipY, float clearance);
+
+    CCRect getPlayerHitboxAt(const PlayerTrailData &trail, float safeMargin = 0.f);
+
     void fillSpiderTrail(CCPoint pos);
 
     bool isOutOfBounds(float y, float height, bool hasUpperBound, float boundsCeil, float boundsFloor);

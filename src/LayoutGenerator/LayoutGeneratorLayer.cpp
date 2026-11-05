@@ -787,18 +787,24 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
         {
             float playerFeetY = playerY - halfHeight;
             float groundSurfaceY = m_lastLiveGroundY + 15.f;
-            float heightAboveGround = playerFeetY - groundSurfaceY;
+            float spikeTipY = groundSurfaceY + 18.f;
+            float verticalClearance = playerFeetY - spikeTipY;
 
-            // Place spikes along the ground under jump arc at obstacle clearance distance
-            if (heightAboveGround >= obstacleDist * 0.6f && heightAboveGround <= 200.f)
+            // Strict Hitbox Clearance:
+            // 1. Horizontal distance from takeoff: player must have cleared the takeoff zone
+            // 2. Vertical clearance: player's feet must be at least obstacleDist above the spike tip
+            // 3. isSafeToPlace: verifies no frame of the player's route/hitbox collides or breaches clearance
+            if (playerX > m_jumpArcStartX + 40.f && verticalClearance >= obstacleDist)
             {
                 if (snapX > m_lastSpikeBottomPos.x + 20.f || m_lastSpikeBottomPos.x <= 0.f)
                 {
                     float spikeY = m_lastLiveGroundY + 30.f;
-                    if (getObjectNearPoint(CCPoint{snapX, spikeY}, 12.f, ObjectId::SPIKE) == nullptr)
+                    CCPoint spikePos{snapX, spikeY};
+                    if (getObjectNearPoint(spikePos, 12.f, ObjectId::SPIKE) == nullptr &&
+                        isSafeToPlace(ObjectId::SPIKE, spikePos, false, obstacleDist))
                     {
-                        createObject(ObjectId::SPIKE, CCPoint{snapX, spikeY});
-                        m_lastSpikeBottomPos = CCPoint{snapX, spikeY};
+                        createObject(ObjectId::SPIKE, spikePos);
+                        m_lastSpikeBottomPos = spikePos;
                     }
                 }
             }
@@ -1444,8 +1450,77 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
     }
 }
 
+CCRect LayoutGeneratorLayer::getPlayerHitboxAt(const PlayerTrailData &trail, float safeMargin)
+{
+    float w = trail.rectSize.width;
+    float h = trail.rectSize.height;
+    // When airborne / jumping, cube rotates; bounding box expands to diagonal: 30 * sqrt(2) ≈ 42.4
+    if (trail.state & PoolState::AIRBORNE)
+    {
+        w = std::max(w, 42.4f);
+        h = std::max(h, 42.4f);
+    }
+    return CCRect(
+        trail.pos.x - w / 2.f - safeMargin,
+        trail.pos.y - h / 2.f - safeMargin,
+        w + 2.f * safeMargin,
+        h + 2.f * safeMargin
+    );
+}
+
+bool LayoutGeneratorLayer::isSafeToPlace(int objectId, CCPoint pos, bool flipY, float clearance)
+{
+    // Exact hazard / collision bounding box for the object
+    CCRect objRect;
+    if (objectId == ObjectId::SPIKE)
+    {
+        // RobTop's actual spike hazard box is 10x18 in center-bottom (or center-top if flipped)
+        if (!flipY)
+            objRect = CCRect(pos.x - 5.f, pos.y - 15.f, 10.f, 18.f);
+        else
+            objRect = CCRect(pos.x - 5.f, pos.y - 3.f, 10.f, 18.f);
+    }
+    else
+    {
+        // Block or Slope: 30x30 bounding box
+        objRect = CCRect(pos.x - 15.f, pos.y - 15.f, 30.f, 30.f);
+    }
+
+    // Expand obstacle by required clearance distance
+    CCRect expandedRect(
+        objRect.getMinX() - clearance,
+        objRect.getMinY() - clearance,
+        objRect.size.width + 2.f * clearance,
+        objRect.size.height + 2.f * clearance
+    );
+
+    // Verify against all frames in player trail near pos.x
+    for (auto const &trail : m_playerTrail)
+    {
+        if (std::abs(trail.pos.x - pos.x) > 50.f + clearance)
+            continue;
+
+        CCRect pHitbox = getPlayerHitboxAt(trail, 0.f);
+        if (expandedRect.intersectsRect(pHitbox))
+        {
+            return false; // Violates safe clearance with player route!
+        }
+    }
+
+    return true;
+}
+
 void LayoutGeneratorLayer::placeSpikeInBounds(CCPoint pos, const PlayerTrailData &trail, bool flipY)
 {
+    auto mod = Mod::get();
+    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+
+    // Strict Hitbox Verification: never place a spike that would hit or be closer than obstacleDist to the player!
+    if (!isSafeToPlace(ObjectId::SPIKE, pos, flipY, obstacleDist))
+    {
+        return;
+    }
+
     if (!isOutOfBounds(pos.y, 12.f, trail))
     {
         if (auto spike = createObject(ObjectId::SPIKE, pos))
