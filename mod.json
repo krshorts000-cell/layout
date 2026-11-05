@@ -113,6 +113,12 @@
 			"type": "bool",
 			"default": true
 		},
+		"live-build-click-only": {
+			"name": "Build Only When Clicking (Только при зажатии)",
+			"description": "Places obstacles and corridor blocks ONLY while holding the button. When released, blocks stop spawning.",
+			"type": "bool",
+			"default": false
+		},
 		"timing-window-frames": {
 			"name": "Click Timing Window (Frames)",
 			"description": "Exact number of frames of tolerance for jumps and corridors. 1 = Frame Perfect, 2-3 = Demon, 4-6 = Hard/Normal, 8-12 = Easy. Places obstacles so jumping/clicking is strictly mandatory with no second paths.",

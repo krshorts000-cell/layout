@@ -81,11 +81,13 @@ bool PlayerData::isCameraFree() const
     return player->m_gameLayer->m_gameState.m_isFreeMode;
 }
 
-// m_jumpBuffered seems to be the same as m_holdingButtons[(int)PlayerButton::Jump],
-// but is false after hitting a spider pad/ring
 bool PlayerData::isClicking() const
 {
-    return player->m_jumpBuffered;
+    if (!player) return false;
+    if (player->m_fields) {
+        return player->m_fields->m_isHoldingJump;
+    }
+    return false;
 }
 
 bool PlayerData::isUpsideDown() const

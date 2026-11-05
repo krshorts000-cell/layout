@@ -14,7 +14,24 @@ class $modify(MyPlayerObject, PlayerObject)
     struct Fields
     {
         std::vector<PlayerTrailData> m_queuedTrail;
+        bool m_isHoldingJump = false;
     };
+
+    void pushButton(PlayerButton p0)
+    {
+        if (p0 == PlayerButton::Jump) {
+            m_fields->m_isHoldingJump = true;
+        }
+        PlayerObject::pushButton(p0);
+    }
+
+    void releaseButton(PlayerButton p0)
+    {
+        if (p0 == PlayerButton::Jump) {
+            m_fields->m_isHoldingJump = false;
+        }
+        PlayerObject::releaseButton(p0);
+    }
 
     void updateJump(float dt)
     {

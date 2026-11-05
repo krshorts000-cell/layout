@@ -104,6 +104,18 @@ class $modify(BGLHook, GJBaseGameLayer) {
         // Original call
         GJBaseGameLayer::handleButton(hold, button, player2);
 
+        // In editor playtest, ensure player receives pushButton and releaseButton directly
+        auto *editorLayer = typeinfo_cast<LevelEditorLayer *>(this);
+        if (editorLayer && editorLayer->m_playbackMode == PlaybackMode::Playing) {
+            if (!player2 && m_player1) {
+                if (hold) m_player1->pushButton((PlayerButton)button);
+                else m_player1->releaseButton((PlayerButton)button);
+            } else if (player2 && m_player2) {
+                if (hold) m_player2->pushButton((PlayerButton)button);
+                else m_player2->releaseButton((PlayerButton)button);
+            }
+        }
+
         // Regular Recording
         if (isRecording && !g.ignoreRecordAction && !m_fields->macroInput &&
             (!m_player1 || !m_player1->m_isDead)) {

@@ -17,10 +17,12 @@ protected:
     float m_obstacleDist = 21.f;
     bool m_fillBlocks = true;
     int m_fillDepth = 1;
+    bool m_clickOnly = false;
 
     CCLabelBMFont* m_lengthLabel = nullptr;
     CCLabelBMFont* m_distLabel = nullptr;
     CCMenuItemSpriteExtra* m_blocksToggleBtn = nullptr;
+    CCMenuItemSpriteExtra* m_clickOnlyBtn = nullptr;
     std::vector<std::pair<int, CCMenuItemSpriteExtra*>> m_depthButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_diffButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_styleButtons;
@@ -163,6 +165,24 @@ protected:
         refreshDepthButtons();
     }
 
+    void updateClickOnlyButton() {
+        if (!m_clickOnlyBtn) return;
+        m_clickOnlyBtn->removeAllChildren();
+
+        std::string text = m_clickOnly ? "HOLD ONLY" : "ALWAYS";
+        const char* bg = m_clickOnly ? "GJ_button_01.png" : "GJ_button_04.png";
+        auto spr = ButtonSprite::create(text.c_str(), "chatFont.fnt", bg, 0.42f);
+        spr->setScale(0.68f);
+        m_clickOnlyBtn->addChild(spr);
+        m_clickOnlyBtn->setContentSize(spr->getContentSize() * 0.68f);
+        spr->setPosition(m_clickOnlyBtn->getContentSize() / 2.f);
+    }
+
+    void onToggleClickOnly(CCObject*) {
+        m_clickOnly = !m_clickOnly;
+        updateClickOnlyButton();
+    }
+
     void saveSettings() {
         auto mod = Mod::get();
         mod->setSettingValue<std::string>("ai-difficulty", m_selectedDifficulty);
@@ -172,6 +192,7 @@ protected:
         mod->setSettingValue<double>("obstacle-distance", static_cast<double>(m_obstacleDist));
         mod->setSettingValue<bool>("corridor-fill", m_fillBlocks);
         mod->setSettingValue<int64_t>("corridor-fill-depth", m_fillDepth);
+        mod->setSettingValue<bool>("live-build-click-only", m_clickOnly);
     }
 
     void onGenerateClick(CCObject*) {
@@ -219,6 +240,8 @@ protected:
         m_fillDepth = mod->hasSetting("corridor-fill-depth") ? static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
         if (m_fillDepth < 1) m_fillDepth = 1;
         if (m_fillDepth > 3) m_fillDepth = 3;
+
+        m_clickOnly = mod->hasSetting("live-build-click-only") ? mod->getSettingValue<bool>("live-build-click-only") : false;
 
         this->setTitle("Layout Generator");
 
@@ -398,8 +421,8 @@ protected:
         blocksMenu->addChild(m_blocksToggleBtn);
 
         std::vector<std::pair<const char*, int>> depthPresets = {
-            {"1 Layer", 1},
-            {"2 Layers", 2}
+            {"1L", 1},
+            {"2L", 2}
         };
         for (auto const& [name, val] : depthPresets) {
             auto pSpr = ButtonSprite::create(name, "chatFont.fnt", "GJ_button_04.png", 0.42f);
@@ -410,6 +433,15 @@ protected:
             blocksMenu->addChild(pBtn);
         }
         refreshDepthButtons();
+
+        auto clickOnlyDummy = CCSprite::create();
+        m_clickOnlyBtn = CCMenuItemSpriteExtra::create(
+            clickOnlyDummy,
+            this,
+            menu_selector(AILayoutPopup::onToggleClickOnly)
+        );
+        updateClickOnlyButton();
+        blocksMenu->addChild(m_clickOnlyBtn);
 
         blocksMenu->updateLayout();
         m_mainLayer->addChild(blocksMenu);

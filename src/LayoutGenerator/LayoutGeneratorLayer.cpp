@@ -611,18 +611,26 @@ void LayoutGeneratorLayer::update(float dt)
             // Avoid duplicate/overlapping spike placements by skipping placeSpikeBoundary for grounded Live Builder.
             if (!(isLiveBuilder && isGroundedMode))
             {
-                placeSpikeBoundary(
-                    spikeBottom,
-                    CCPoint{spikeX, yMin},
-                    spikeTop,
-                    CCPoint{spikeX, yMax},
-                    midTrail,
-                    (isFramePerfect || spikeMargin <= 0.f)
-                        ? 0.f
-                        : (closeTheSpiderGap
-                               ? 6.f
-                               : playerSize.width) +
-                              6.f - pd->velScaled.x);
+                bool onlyOnClick = mod->hasSetting("live-build-click-only") && mod->getSettingValue<bool>("live-build-click-only");
+                if (isLiveBuilder && onlyOnClick && !midTrail.isClicking)
+                {
+                    // User released the button: stop placing corridor blocks
+                }
+                else
+                {
+                    placeSpikeBoundary(
+                        spikeBottom,
+                        CCPoint{spikeX, yMin},
+                        spikeTop,
+                        CCPoint{spikeX, yMax},
+                        midTrail,
+                        (isFramePerfect || spikeMargin <= 0.f)
+                            ? 0.f
+                            : (closeTheSpiderGap
+                                   ? 6.f
+                                   : playerSize.width) +
+                                  6.f - pd->velScaled.x);
+                }
             }
         }
     }
@@ -1300,7 +1308,7 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
 
     if (useWaveSlopes)
     {
-        bool isRising = (midTrail.getSign() > 0) ? midTrail.isClicking : !midTrail.isClicking;
+        bool isRising = isWave ? (midTrail.velUnscaled.y * midTrail.getSign() > 0.05f) : ((midTrail.getSign() > 0) ? midTrail.isClicking : !midTrail.isClicking);
 
         bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
         int windowFrames = mod->hasSetting("timing-window-frames") ? static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
