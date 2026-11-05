@@ -639,6 +639,9 @@ void LayoutGeneratorLayer::update(float dt)
                 }
                 else
                 {
+                    bool isSpider = (pd->state & PoolState::GAMEMODE_SPIDER) || (midTrail.fish && (midTrail.fish->tags & PoolTag::SPIDER));
+                    float spiderOrNormWidth = isSpider ? (playerSize.width + 12.f) : playerSize.width;
+
                     placeSpikeBoundary(
                         spikeBottom,
                         CCPoint{spikeX, yMin},
@@ -647,10 +650,7 @@ void LayoutGeneratorLayer::update(float dt)
                         midTrail,
                         (isFramePerfect || spikeMargin <= 0.f)
                             ? 0.f
-                            : (closeTheSpiderGap
-                                   ? 6.f
-                                   : playerSize.width) +
-                                  6.f - pd->velScaled.x);
+                            : spiderOrNormWidth + 6.f - pd->velScaled.x);
                 }
             }
         }
@@ -1532,12 +1532,16 @@ void LayoutGeneratorLayer::placeClickPillar(CCPoint playerPos, const PlayerTrail
         static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
     if (maxDepth < 1) maxDepth = 1;
 
+    // Minimum safe clearance: ensure clearance is at least 3.0f so it never grazes
+    if (clearance < 3.0f) clearance = 3.0f;
+
     float halfHeight = trail.rectSize.height / 2.f;
     float rawBottomY = playerPos.y - halfHeight - clearance - 15.f;
-    float snapBottomY = std::round((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
+    // CRITICAL: Always floor downward for bottom obstacles so it never penetrates upward into player hitbox!
+    float snapBottomY = std::floor((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
     if (snapBottomY < m_boundsFloor + 15.f)
         snapBottomY = m_boundsFloor + 15.f;
-    float snapX = std::round((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
+    float snapX = std::floor((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
 
     // Floor ramp slope facing UP-RIGHT (rotation 0) at snapBottomY
     CCPoint col0SlopePos{snapX, snapBottomY};
@@ -1577,12 +1581,16 @@ void LayoutGeneratorLayer::placeReleasePillar(CCPoint playerPos, const PlayerTra
         static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
     if (maxDepth < 1) maxDepth = 1;
 
+    // Minimum safe clearance: ensure clearance is at least 3.0f so it never grazes
+    if (clearance < 3.0f) clearance = 3.0f;
+
     float halfHeight = trail.rectSize.height / 2.f;
     float rawTopY = playerPos.y + halfHeight + clearance + 15.f;
-    float snapTopY = std::round((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
+    // CRITICAL: Always ceil upward for ceiling obstacles so it never penetrates downward into player hitbox!
+    float snapTopY = std::ceil((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
     if (snapTopY > m_boundsCeil - 15.f)
         snapTopY = m_boundsCeil - 15.f;
-    float snapX = std::round((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
+    float snapX = std::floor((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
 
     // Ceiling slope facing DOWN-LEFT (-90) at snapTopY
     CCPoint col0SlopePos{snapX, snapTopY};
