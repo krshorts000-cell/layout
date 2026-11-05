@@ -250,7 +250,7 @@ void LayoutGeneratorLayer::update(float dt)
     bool isLiveBuilder = !m_usingAIMacro && (mod->hasSetting("live-builder-mode") ? mod->getSettingValue<bool>("live-builder-mode") : true);
     bool usePlayerClicks = m_usingAIMacro || isLiveBuilder || mod->getSettingValue<bool>("use-player-clicks");
     bool useRandomClicks = !usePlayerClicks;
-    bool isGroundedMode = (pd->gamemode & (PoolState::GAMEMODE_CUBE | PoolState::GAMEMODE_ROBOT | PoolState::GAMEMODE_BALL | PoolState::GAMEMODE_SPIDER)) != 0;
+    bool isGroundedMode = (pd->gamemode & (PoolState::GAMEMODE_CUBE | PoolState::GAMEMODE_ROBOT)) != 0;
 
     if (isLiveBuilder && isGroundedMode)
     {
@@ -470,56 +470,23 @@ void LayoutGeneratorLayer::update(float dt)
         // also make it a bit wider according to the spikeMargin
         const CCSize spikeSize{8.f + spikeMargin / 2.f, 14.f};
 
-        // Overtake player by 1 frame: place spikes 1 frame ahead (+ pd->velScaled.x)
-        const float spikeX = pd->pos.x + pd->velScaled.x;
-        const float spikeScanRight = spikeX + (playerSize.width + spikeSize.width) / 2.f;
+        // 30 units is the largest width that the player hitbox can ever be
+        const float spikeScanRight = pd->pos.x - (30.f - playerSize.width) / 2.f;
+
+        // place the right of the spike on the left of the player
+        const float spikeX = spikeScanRight - (playerSize.width + spikeSize.width) / 2.f;
+
+        // scan until the right of the player is past the left of the spike
         const float spikeScanLeft = spikeX - (playerSize.width + spikeSize.width) / 2.f;
 
         bool spikeBottom = false;
         bool spikeTop = false;
-
-        PlayerTrailData projectedTrail = PlayerTrailData::fromPlayerData(*pd);
-        projectedTrail.pos = CCPoint{
-            pd->pos.x + pd->velScaled.x,
-            pd->pos.y + (pd->state & PoolState::GROUNDED ? 0.f : pd->velScaled.y)
-        };
-        // IMPORTANT: fromPlayerData leaves boundsCeil/boundsFloor at 0; set them from current generator bounds
-        projectedTrail.boundsCeil = m_boundsCeil;
-        projectedTrail.boundsFloor = m_boundsFloor;
-        PlayerTrailData leftTrail = projectedTrail;
-        PlayerTrailData midTrail = projectedTrail;
+        float yMin = FLT_MAX;
+        float yMax = -FLT_MAX;
+        PlayerTrailData leftTrail = PlayerTrailData::fromPlayerData(*pd);
+        PlayerTrailData midTrail = leftTrail;
         bool closeTheSpiderGap = isFramePerfect ? true : false;
-
-        bool isGroundedMode = (pd->gamemode == PoolState::GAMEMODE_CUBE || pd->gamemode == PoolState::GAMEMODE_ROBOT);
-        bool isUpsideDown = (pd->state & PoolState::GRAVITY_REVERSE) || (pd->player && pd->player->m_isUpsideDown);
-
-        if (pd->state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS))
-        {
-            if (isGroundedMode)
-            {
-                if (isUpsideDown)
-                {
-                    spikeTop = true;
-                    spikeBottom = false;
-                }
-                else
-                {
-                    spikeBottom = true;
-                    spikeTop = false; // Strictly prevent ceiling spikes above normal cube/robot
-                }
-            }
-            else
-            {
-                spikeBottom = true;
-                spikeTop = true;
-            }
-        }
-
-        float initEvilSpikeMargin = (projectedTrail.rectSize.height + spikeSize.height) / 2.f;
-        float initMargin = isFramePerfect ? 1.5f : std::max(spikeMargin, 0.f);
-        float initShrunkMargin = initEvilSpikeMargin + initMargin;
-        float yMin = projectedTrail.pos.y - initShrunkMargin;
-        float yMax = projectedTrail.pos.y + initShrunkMargin;
+        float midMaxShrink = 0.0f;
 
         for (auto it = m_playerTrail.rbegin(); it != m_playerTrail.rend(); ++it)
         {
@@ -539,10 +506,7 @@ void LayoutGeneratorLayer::update(float dt)
                 (trail.isUpsideDown() && trail.velUnscaled.y >= 15.f) ||
                 // spider
                 (trail.fish && trail.fish->tags & PoolTag::SPIDER))
-            {
-                if (!isGroundedMode || !trail.isUpsideDown())
-                    spikeBottom = true;
-            }
+                spikeBottom = true;
             if (
                 // airborne or flying or ball/spider
                 trail.state & (PoolState::AIRBORNE | PoolState::HAS_BOUNDS) ||
@@ -550,10 +514,7 @@ void LayoutGeneratorLayer::update(float dt)
                 (!trail.isUpsideDown() && trail.velUnscaled.y <= -15.f) ||
                 // spider
                 (trail.fish && trail.fish->tags & PoolTag::SPIDER))
-            {
-                if (!isGroundedMode || trail.isUpsideDown())
-                    spikeTop = true;
-            }
+                spikeTop = true;
 
             // check for spider elements that would let the player slip through the gaps
             if (trail.pos.x > pd->pos.x - 96.f && trail.pos.x < spikeX)
@@ -583,9 +544,10 @@ void LayoutGeneratorLayer::update(float dt)
             float evilSpikeMargin = (trail.rectSize.height + spikeSize.height) / 2.f;
             float shrunkSpikeMargin = evilSpikeMargin + (isFramePerfect ? 1.5f : std::max(spikeMargin - shrink, 0.f));
             leftTrail = trail;
-            if (trail.pos.x > spikeX)
+            if (trail.pos.x >= spikeX)
             {
                 midTrail = trail;
+                midMaxShrink = shrunkSpikeMargin - evilSpikeMargin;
             }
 
             yMin = std::min(yMin, trail.pos.y - shrunkSpikeMargin);
@@ -594,34 +556,131 @@ void LayoutGeneratorLayer::update(float dt)
 
         if (yMin < FLT_MAX)
         {
-            // Frame-perfect clearance (1.5f tolerance: clicking 1 frame off results in 10+ units displacement and instant death)
-            float midEvilSpikeMargin = (midTrail.rectSize.height + spikeSize.height) / 2.f;
-            float safeClearance = isFramePerfect ? (midEvilSpikeMargin + 1.5f) : (midEvilSpikeMargin + obstacleDist);
-            if (yMin > midTrail.pos.y - safeClearance)
-                yMin = midTrail.pos.y - safeClearance;
-            if (yMax < midTrail.pos.y + safeClearance)
-                yMax = midTrail.pos.y + safeClearance;
-
-            if (isGroundedMode && !isUpsideDown)
+            if (!(midTrail.state & PoolState::GAMEMODE_WAVE))
             {
-                spikeTop = false; // Never place ceiling spikes above running/jumping cube
+                float jumpShrink = std::min(midMaxShrink, midTrail.state & PoolState::SIZE_MINI ? 30.f : 15.f);
+                if (leftTrail.pos.y < midTrail.pos.y - 1.f &&
+                    pd->pos.y < midTrail.pos.y - 1.f &&
+                    !midTrail.isUpsideDown())
+                    yMin += jumpShrink;
+                if (leftTrail.pos.y > midTrail.pos.y + 1.f &&
+                    pd->pos.y > midTrail.pos.y + 1.f &&
+                    midTrail.isUpsideDown())
+                    yMax -= jumpShrink;
             }
 
-            // In Live Builder mode for grounded gamemodes, updateLiveGroundedObstacles handles ground and jump obstacles.
-            // Avoid duplicate/overlapping spike placements by skipping placeSpikeBoundary for grounded Live Builder.
-            std::string patternMode = mod->hasSetting("layout-pattern-mode") ? 
-                mod->getSettingValue<std::string>("layout-pattern-mode") : "Spike Envelope";
-            bool isWaveMode = (pd->state & PoolState::GAMEMODE_WAVE) != 0;
+            bool isGroundedMode = (midTrail.state & PoolState::NO_BOUNDS) || 
+                                  (pd->gamemode == PoolState::GAMEMODE_CUBE || pd->gamemode == PoolState::GAMEMODE_ROBOT);
+            bool isBallMode = (midTrail.state & PoolState::GAMEMODE_BALL) || (pd->gamemode == PoolState::GAMEMODE_BALL);
+            bool isUpsideDown = midTrail.isUpsideDown();
+            bool isMidGrounded = (midTrail.state & PoolState::GROUNDED) != 0;
+            bool isMidAirborne = (midTrail.state & PoolState::AIRBORNE) != 0;
 
+            if (isGroundedMode)
+            {
+                // Cube and Robot:
+                // Spikes placed in real-time under/above jump arc.
+                // Never place spikes under player's feet while grounded.
+                // No ceiling spikes in normal gravity, no floor spikes in reverse gravity.
+                if (!isUpsideDown)
+                {
+                    spikeTop = false; // Strictly NO upper spike ceiling in cube/robot
+                    if (isMidGrounded)
+                    {
+                        spikeBottom = false; // Never spike running ground
+                    }
+                    else if (isMidAirborne)
+                    {
+                        spikeBottom = true; // Real-time spike under jump arc!
+                        float groundSpikeY = m_boundsFloor + 15.f;
+                        if (yMin < groundSpikeY || midTrail.pos.y < m_boundsFloor + 80.f)
+                            yMin = groundSpikeY;
+                    }
+                    else
+                    {
+                        spikeBottom = false;
+                    }
+                }
+                else
+                {
+                    spikeBottom = false; // Strictly NO lower spike floor in reverse cube/robot
+                    if (isMidGrounded)
+                    {
+                        spikeTop = false; // Never spike running ceiling
+                    }
+                    else if (isMidAirborne)
+                    {
+                        spikeTop = true; // Real-time spike above reverse jump arc!
+                        float ceilSpikeY = m_boundsCeil - 15.f;
+                        if (yMax > ceilSpikeY || midTrail.pos.y > m_boundsCeil - 80.f)
+                            yMax = ceilSpikeY;
+                    }
+                    else
+                    {
+                        spikeTop = false;
+                    }
+                }
+            }
+            else if (isBallMode)
+            {
+                // Ball rules:
+                // Ball rolls on floor in normal gravity, and rolls on ceiling in reverse gravity.
+                // 1. When rolling on floor: NEVER place spikes on the floor, and NEVER place mid-air spikes above it!
+                // 2. When flipping up from floor (airborne): place floor spikes under the launch, keep ceiling CLEAR!
+                // 3. When rolling on ceiling: NEVER place spikes on the ceiling, and NEVER place mid-air spikes below it!
+                // 4. When flipping down from ceiling (airborne): place ceiling spikes above the launch, keep floor CLEAR!
+                if (!isUpsideDown)
+                {
+                    if (isMidGrounded)
+                    {
+                        spikeBottom = false;
+                        spikeTop = false; // Don't place mid-air spikes above rolling ball
+                    }
+                    else if (isMidAirborne)
+                    {
+                        spikeBottom = true;
+                        spikeTop = false; // Ceiling clear for safe transit to ceiling
+                        yMin = m_boundsFloor + 15.f; // Spikes rest cleanly on floor
+                    }
+                    else
+                    {
+                        spikeBottom = false;
+                        spikeTop = false;
+                    }
+                }
+                else
+                {
+                    if (isMidGrounded)
+                    {
+                        spikeTop = false;
+                        spikeBottom = false; // Don't place mid-air spikes below rolling ball
+                    }
+                    else if (isMidAirborne)
+                    {
+                        spikeTop = true;
+                        spikeBottom = false; // Floor clear for safe transit to floor
+                        yMax = m_boundsCeil - 15.f; // Spikes rest cleanly on ceiling
+                    }
+                    else
+                    {
+                        spikeTop = false;
+                        spikeBottom = false;
+                    }
+                }
+            }
+
+            bool isWaveMode = (pd->state & PoolState::GAMEMODE_WAVE) != 0;
             if (isWaveMode)
             {
+                std::string patternMode = mod->hasSetting("layout-pattern-mode") ? 
+                    mod->getSettingValue<std::string>("layout-pattern-mode") : "Spike Envelope";
                 if (patternMode == "Turn Pillars")
                 {
                     bool isClickingNow = pd->isClicking();
                     bool justClicked = isClickingNow && !m_isClickingLastFrame;
                     bool justReleased = !isClickingNow && m_isClickingLastFrame;
 
-                    float clearance = isFramePerfect ? 1.5f : obstacleDist;
+                    float clearance = 10.f;
                     if (justClicked)
                     {
                         placeClickPillar(pd->pos, midTrail, clearance);
@@ -633,32 +692,24 @@ void LayoutGeneratorLayer::update(float dt)
                 }
                 else
                 {
-                    // Default: continuous Spike Envelope wrapping the entire wave path
+                    // Continuous Spike Envelope wrapping entire wave path
                     updateWaveSpikeEnvelope(pd, midTrail);
                 }
             }
-            else if (!(isLiveBuilder && isGroundedMode))
+            else
             {
-                bool onlyOnClick = mod->hasSetting("live-build-click-only") && mod->getSettingValue<bool>("live-build-click-only");
-                if (isLiveBuilder && onlyOnClick && !midTrail.isClicking)
-                {
-                    // User released the button: stop placing corridor blocks
-                }
-                else
-                {
-                    bool isSpider = (pd->state & PoolState::GAMEMODE_SPIDER) || (midTrail.fish && (midTrail.fish->tags & PoolTag::SPIDER));
-                    float spiderOrNormWidth = isSpider ? (playerSize.width + 12.f) : playerSize.width;
+                bool isSpider = (pd->state & PoolState::GAMEMODE_SPIDER) || (midTrail.fish && (midTrail.fish->tags & PoolTag::SPIDER));
+                float spiderOrNormWidth = isSpider ? (playerSize.width + 12.f) : playerSize.width;
 
-                    placeSpikeBoundary(
-                        spikeBottom,
-                        CCPoint{spikeX, yMin},
-                        spikeTop,
-                        CCPoint{spikeX, yMax},
-                        midTrail,
-                        (isFramePerfect || spikeMargin <= 0.f)
-                            ? 0.f
-                            : spiderOrNormWidth + 6.f - pd->velScaled.x);
-                }
+                placeSpikeBoundary(
+                    spikeBottom,
+                    CCPoint{spikeX, yMin},
+                    spikeTop,
+                    CCPoint{spikeX, yMax},
+                    midTrail,
+                    (isFramePerfect || spikeMargin <= 0.f)
+                        ? 0.f
+                        : spiderOrNormWidth + 6.f - pd->velScaled.x);
             }
         }
     }
@@ -751,15 +802,6 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
 {
     auto mod = Mod::get();
     bool liveGround = mod->hasSetting("live-ground-platforms") ? mod->getSettingValue<bool>("live-ground-platforms") : true;
-    bool liveJumpObstacles = mod->hasSetting("live-jump-obstacles") ? mod->getSettingValue<bool>("live-jump-obstacles") : true;
-
-    // Timing window in frames (e.g. 1 frame = perfect, 3 = demon, 5 = hard)
-    int windowFrames = mod->hasSetting("timing-window-frames") ? static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
-    if (windowFrames < 1) windowFrames = 1;
-
-    float vx = std::max(8.f, std::abs(pd->velScaled.x));
-    float halfWindowX = (windowFrames / 2.f) * vx;
-    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : (halfWindowX);
 
     bool isGrounded = (pd->state & PoolState::GROUNDED) || (pd->player && pd->player->m_isOnGround);
     float halfHeight = pd->getRectSize().height / 2.f;
@@ -774,33 +816,6 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
         float blockCenterY = footY - 15.f;
         float snapY = std::round((blockCenterY - 15.f) / 30.f) * 30.f + 15.f;
 
-        // When landing from a jump: place mandatory jump hazards to eliminate second paths!
-        if (!m_wasGroundedLastFrame && m_jumpArcStartX > 0.f && liveJumpObstacles)
-        {
-            // Hazard must start right after takeoff + halfWindowX (forces the jump; no walking through!)
-            float hazardStartX = m_jumpArcStartX + halfWindowX + 15.f;
-            // Hazard must end before landing - halfWindowX (punishes jumping too early!)
-            float hazardEndX = playerX - halfWindowX - 10.f;
-
-            float snapStart = std::round((hazardStartX - 15.f) / 30.f) * 30.f + 15.f;
-            float snapEnd = std::round((hazardEndX - 15.f) / 30.f) * 30.f + 15.f;
-
-            if (snapEnd >= snapStart)
-            {
-                float spikeY = m_jumpGroundY + 30.f;
-                for (float spX = snapStart; spX <= snapEnd; spX += 30.f)
-                {
-                    CCPoint spikePos{spX, spikeY};
-                    if (getObjectNearPoint(spikePos, 10.f, ObjectId::SPIKE) == nullptr &&
-                        isSafeToPlace(ObjectId::SPIKE, spikePos, false, 0.f))
-                    {
-                        createObject(ObjectId::SPIKE, spikePos);
-                    }
-                }
-            }
-            m_jumpArcStartX = 0.f;
-        }
-
         if (liveGround)
         {
             if (snapX > m_lastLiveGroundX + 15.f || m_lastLiveGroundX < -9000.f)
@@ -810,8 +825,7 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
                 {
                     for (float interX = m_lastLiveGroundX + 30.f; interX < snapX; interX += 30.f)
                     {
-                        if (getObjectNearPoint(CCPoint{interX, snapY}, 10.f, ObjectId::BLOCK) == nullptr &&
-                            getObjectNearPoint(CCPoint{interX, snapY + 30.f}, 10.f, ObjectId::SPIKE) == nullptr)
+                        if (getObjectNearPoint(CCPoint{interX, snapY}, 10.f, ObjectId::BLOCK) == nullptr)
                         {
                             createObject(ObjectId::BLOCK, CCPoint{interX, snapY});
                         }
@@ -841,44 +855,7 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
     }
     else
     {
-        // Player is airborne (jumping)
-        if (m_wasGroundedLastFrame)
-        {
-            m_jumpArcStartX = playerX;
-            m_jumpArcStartY = playerY;
-            m_jumpGroundY = m_lastLiveGroundY;
-            m_jumpArcPeakY = playerY;
-            m_wasGroundedLastFrame = false;
-        }
-
-        m_jumpArcPeakY = std::max(m_jumpArcPeakY, playerY);
-
-        if (liveJumpObstacles && m_lastLiveGroundX > -9000.f)
-        {
-            float playerFeetY = playerY - halfHeight;
-            float groundSurfaceY = m_lastLiveGroundY + 15.f;
-            float spikeTipY = groundSurfaceY + 18.f;
-            float verticalClearance = playerFeetY - spikeTipY;
-
-            // Strict Hitbox Clearance:
-            // 1. Horizontal distance from takeoff: player must have cleared the takeoff zone
-            // 2. Vertical clearance: player's feet must be at least obstacleDist above the spike tip
-            // 3. isSafeToPlace: verifies no frame of the player's route/hitbox collides or breaches clearance
-            if (playerX > m_jumpArcStartX + halfWindowX + 15.f && verticalClearance >= obstacleDist)
-            {
-                if (snapX > m_lastSpikeBottomPos.x + 20.f || m_lastSpikeBottomPos.x <= 0.f)
-                {
-                    float spikeY = m_lastLiveGroundY + 30.f;
-                    CCPoint spikePos{snapX, spikeY};
-                    if (getObjectNearPoint(spikePos, 12.f, ObjectId::SPIKE) == nullptr &&
-                        isSafeToPlace(ObjectId::SPIKE, spikePos, false, obstacleDist))
-                    {
-                        createObject(ObjectId::SPIKE, spikePos);
-                        m_lastSpikeBottomPos = spikePos;
-                    }
-                }
-            }
-        }
+        m_wasGroundedLastFrame = false;
     }
 }
 
@@ -1864,16 +1841,6 @@ bool LayoutGeneratorLayer::isSafeToPlace(int objectId, CCPoint pos, bool flipY, 
 
 void LayoutGeneratorLayer::placeSpikeInBounds(CCPoint pos, const PlayerTrailData &trail, bool flipY)
 {
-    auto mod = Mod::get();
-    bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
-    float safeClearance = isFramePerfect ? 1.5f : 3.0f;
-
-    // Strict Hitbox Verification: never place a spike that would hit or be closer than safeClearance to the player!
-    if (!isSafeToPlace(ObjectId::SPIKE, pos, flipY, safeClearance))
-    {
-        return;
-    }
-
     if (!isOutOfBounds(pos.y, 12.f, trail))
     {
         if (auto spike = createObject(ObjectId::SPIKE, pos))
