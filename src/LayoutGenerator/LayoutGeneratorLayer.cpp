@@ -686,7 +686,7 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
     bool liveJumpObstacles = mod->hasSetting("live-jump-obstacles") ? mod->getSettingValue<bool>("live-jump-obstacles") : true;
     float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
 
-    bool isGrounded = pd->isOnGround();
+    bool isGrounded = (pd->state & PoolState::GROUNDED) || (pd->player && pd->player->m_isOnGround);
     float halfHeight = pd->getRectSize().height / 2.f;
     float playerX = pd->pos.x;
     float playerY = pd->pos.y;
