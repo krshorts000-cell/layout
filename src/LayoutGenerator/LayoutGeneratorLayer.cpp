@@ -76,6 +76,7 @@ void LayoutGeneratorLayer::reset()
     m_wasGroundedLastFrame = true;
     m_jumpArcStartX = 0.f;
     m_jumpArcStartY = 0.f;
+    m_jumpGroundY = 105.f;
 }
 
 void LayoutGeneratorLayer::sendClick(bool hold)
@@ -719,7 +720,14 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
     auto mod = Mod::get();
     bool liveGround = mod->hasSetting("live-ground-platforms") ? mod->getSettingValue<bool>("live-ground-platforms") : true;
     bool liveJumpObstacles = mod->hasSetting("live-jump-obstacles") ? mod->getSettingValue<bool>("live-jump-obstacles") : true;
-    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+
+    // Timing window in frames (e.g. 1 frame = perfect, 3 = demon, 5 = hard)
+    int windowFrames = mod->hasSetting("timing-window-frames") ? static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
+    if (windowFrames < 1) windowFrames = 1;
+
+    float vx = std::max(8.f, std::abs(pd->velScaled.x));
+    float halfWindowX = (windowFrames / 2.f) * vx;
+    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : (halfWindowX);
 
     bool isGrounded = (pd->state & PoolState::GROUNDED) || (pd->player && pd->player->m_isOnGround);
     float halfHeight = pd->getRectSize().height / 2.f;
@@ -734,6 +742,33 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
         float blockCenterY = footY - 15.f;
         float snapY = std::round((blockCenterY - 15.f) / 30.f) * 30.f + 15.f;
 
+        // When landing from a jump: place mandatory jump hazards to eliminate second paths!
+        if (!m_wasGroundedLastFrame && m_jumpArcStartX > 0.f && liveJumpObstacles)
+        {
+            // Hazard must start right after takeoff + halfWindowX (forces the jump; no walking through!)
+            float hazardStartX = m_jumpArcStartX + halfWindowX + 15.f;
+            // Hazard must end before landing - halfWindowX (punishes jumping too early!)
+            float hazardEndX = playerX - halfWindowX - 10.f;
+
+            float snapStart = std::round((hazardStartX - 15.f) / 30.f) * 30.f + 15.f;
+            float snapEnd = std::round((hazardEndX - 15.f) / 30.f) * 30.f + 15.f;
+
+            if (snapEnd >= snapStart)
+            {
+                float spikeY = m_jumpGroundY + 30.f;
+                for (float spX = snapStart; spX <= snapEnd; spX += 30.f)
+                {
+                    CCPoint spikePos{spX, spikeY};
+                    if (getObjectNearPoint(spikePos, 10.f, ObjectId::SPIKE) == nullptr &&
+                        isSafeToPlace(ObjectId::SPIKE, spikePos, false, 0.f))
+                    {
+                        createObject(ObjectId::SPIKE, spikePos);
+                    }
+                }
+            }
+            m_jumpArcStartX = 0.f;
+        }
+
         if (liveGround)
         {
             if (snapX > m_lastLiveGroundX + 15.f || m_lastLiveGroundX < -9000.f)
@@ -743,7 +778,8 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
                 {
                     for (float interX = m_lastLiveGroundX + 30.f; interX < snapX; interX += 30.f)
                     {
-                        if (getObjectNearPoint(CCPoint{interX, snapY}, 10.f, ObjectId::BLOCK) == nullptr)
+                        if (getObjectNearPoint(CCPoint{interX, snapY}, 10.f, ObjectId::BLOCK) == nullptr &&
+                            getObjectNearPoint(CCPoint{interX, snapY + 30.f}, 10.f, ObjectId::SPIKE) == nullptr)
                         {
                             createObject(ObjectId::BLOCK, CCPoint{interX, snapY});
                         }
@@ -777,6 +813,7 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
         {
             m_jumpArcStartX = playerX;
             m_jumpArcStartY = playerY;
+            m_jumpGroundY = m_lastLiveGroundY;
             m_jumpArcPeakY = playerY;
             m_wasGroundedLastFrame = false;
         }
@@ -794,7 +831,7 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
             // 1. Horizontal distance from takeoff: player must have cleared the takeoff zone
             // 2. Vertical clearance: player's feet must be at least obstacleDist above the spike tip
             // 3. isSafeToPlace: verifies no frame of the player's route/hitbox collides or breaches clearance
-            if (playerX > m_jumpArcStartX + 40.f && verticalClearance >= obstacleDist)
+            if (playerX > m_jumpArcStartX + halfWindowX + 15.f && verticalClearance >= obstacleDist)
             {
                 if (snapX > m_lastSpikeBottomPos.x + 20.f || m_lastSpikeBottomPos.x <= 0.f)
                 {
@@ -1269,9 +1306,12 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
         bool isRising = (midTrail.getSign() > 0) ? midTrail.isClicking : !midTrail.isClicking;
 
         bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
-        float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+        int windowFrames = mod->hasSetting("timing-window-frames") ? static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
+        if (windowFrames < 1) windowFrames = 1;
+        float vx = std::max(8.f, std::abs(midTrail.velUnscaled.x));
+        float frameClearance = (windowFrames / 2.f) * vx;
         float halfHeight = midTrail.rectSize.height / 2.f;
-        float clearance = isFramePerfect ? 1.5f : obstacleDist;
+        float clearance = isFramePerfect ? 1.5f : frameClearance;
 
         // Snap X to standard 30x30 Geometry Dash grid (15, 45, 75, 105, 135...)
         float snapX = std::round((bottomPos.x - 15.f) / 30.f) * 30.f + 15.f;

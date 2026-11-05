@@ -13,7 +13,8 @@ protected:
     std::string m_selectedDifficulty;
     std::string m_selectedStyle;
     int m_clicksCount = 120;
-    float m_obstacleDist = 35.f;
+    int m_timingFrames = 4;
+    float m_obstacleDist = 21.f;
 
     CCLabelBMFont* m_lengthLabel = nullptr;
     CCLabelBMFont* m_distLabel = nullptr;
@@ -28,7 +29,7 @@ protected:
 
     void updateDistanceDisplay() {
         if (!m_distLabel) return;
-        m_distLabel->setString(fmt::format("Clearance: {:.0f} px", m_obstacleDist).c_str());
+        m_distLabel->setString(fmt::format("{} Frames (~{:.0f}px)", m_timingFrames, m_obstacleDist).c_str());
     }
 
     void refreshDifficultyButtons() {
@@ -57,11 +58,28 @@ protected:
 
     void onSelectDifficulty(CCObject* sender) {
         int tag = sender->getTag();
-        if (tag == 0) m_selectedDifficulty = "Easy";
-        else if (tag == 1) m_selectedDifficulty = "Medium";
-        else if (tag == 2) m_selectedDifficulty = "Hard";
-        else if (tag == 3) m_selectedDifficulty = "Extreme Demon";
+        if (tag == 0) {
+            m_selectedDifficulty = "Easy";
+            m_timingFrames = 8;
+            m_obstacleDist = 42.f;
+        }
+        else if (tag == 1) {
+            m_selectedDifficulty = "Medium";
+            m_timingFrames = 5;
+            m_obstacleDist = 26.f;
+        }
+        else if (tag == 2) {
+            m_selectedDifficulty = "Hard";
+            m_timingFrames = 3;
+            m_obstacleDist = 16.f;
+        }
+        else if (tag == 3) {
+            m_selectedDifficulty = "Extreme Demon";
+            m_timingFrames = 1;
+            m_obstacleDist = 6.f;
+        }
         refreshDifficultyButtons();
+        updateDistanceDisplay();
     }
 
     void onSelectStyle(CCObject* sender) {
@@ -89,17 +107,20 @@ protected:
     }
 
     void onDistMinus(CCObject*) {
-        m_obstacleDist = std::max(5.f, m_obstacleDist - 5.f);
+        m_timingFrames = std::max(1, m_timingFrames - 1);
+        m_obstacleDist = m_timingFrames * 5.2f;
         updateDistanceDisplay();
     }
 
     void onDistPlus(CCObject*) {
-        m_obstacleDist = std::min(120.f, m_obstacleDist + 5.f);
+        m_timingFrames = std::min(15, m_timingFrames + 1);
+        m_obstacleDist = m_timingFrames * 5.2f;
         updateDistanceDisplay();
     }
 
     void onDistPresetClick(CCObject* sender) {
-        m_obstacleDist = static_cast<float>(sender->getTag());
+        m_timingFrames = sender->getTag();
+        m_obstacleDist = m_timingFrames * 5.2f;
         updateDistanceDisplay();
     }
 
@@ -108,6 +129,7 @@ protected:
         mod->setSettingValue<std::string>("ai-difficulty", m_selectedDifficulty);
         mod->setSettingValue<std::string>("ai-gameplay-style", m_selectedStyle);
         mod->setSettingValue<int64_t>("ai-clicks-count", m_clicksCount);
+        mod->setSettingValue<int64_t>("timing-window-frames", m_timingFrames);
         mod->setSettingValue<double>("obstacle-distance", static_cast<double>(m_obstacleDist));
     }
 
@@ -144,7 +166,11 @@ protected:
         if (m_clicksCount < 20) m_clicksCount = 20;
         if (m_clicksCount > 500) m_clicksCount = 500;
 
-        m_obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+        m_timingFrames = mod->hasSetting("timing-window-frames") ? static_cast<int>(mod->getSettingValue<int64_t>("timing-window-frames")) : 4;
+        if (m_timingFrames < 1) m_timingFrames = 1;
+        if (m_timingFrames > 20) m_timingFrames = 20;
+
+        m_obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : (m_timingFrames * 5.2f);
         if (m_obstacleDist < 5.f) m_obstacleDist = 5.f;
         if (m_obstacleDist > 120.f) m_obstacleDist = 120.f;
 
@@ -219,8 +245,8 @@ protected:
         m_mainLayer->addChild(styleMenu);
         refreshStyleButtons();
 
-        // 3. OBSTACLE CLEARANCE DISTANCE
-        auto distTitle = CCLabelBMFont::create("Obstacle Distance:", "goldFont.fnt");
+        // 3. OBSTACLE CLEARANCE & TIMING WINDOW (NO 2ND PATHS)
+        auto distTitle = CCLabelBMFont::create("Click Window (Strict Timing):", "goldFont.fnt");
         distTitle->setScale(0.5f);
         distTitle->setPosition({w / 2.f, h - 138.f});
         m_mainLayer->addChild(distTitle);
@@ -228,7 +254,7 @@ protected:
         auto distMenu = CCMenu::create();
         distMenu->setPosition({w / 2.f, h - 160.f});
         distMenu->setContentSize({360.f, 26.f});
-        distMenu->setLayout(RowLayout::create()->setGap(10.f));
+        distMenu->setLayout(RowLayout::create()->setGap(8.f));
 
         auto dMinus = CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png");
         dMinus->setScale(0.75f);
@@ -236,7 +262,7 @@ protected:
         distMenu->addChild(dMinusBtn);
 
         m_distLabel = CCLabelBMFont::create("", "bigFont.fnt");
-        m_distLabel->setScale(0.48f);
+        m_distLabel->setScale(0.46f);
         m_distLabel->setColor(ccc3(100, 240, 255));
         updateDistanceDisplay();
         distMenu->addChild(m_distLabel);
@@ -247,13 +273,14 @@ protected:
         distMenu->addChild(dPlusBtn);
 
         std::vector<std::pair<const char*, int>> distPresets = {
-            {"15px", 15},
-            {"35px", 35},
-            {"60px", 60}
+            {"1F (Demon)", 1},
+            {"3F (Hard)", 3},
+            {"5F (Normal)", 5},
+            {"8F (Easy)", 8}
         };
         for (auto const& [name, val] : distPresets) {
             auto pSpr = ButtonSprite::create(name, "chatFont.fnt", "GJ_button_04.png", 0.42f);
-            pSpr->setScale(0.68f);
+            pSpr->setScale(0.65f);
             auto pBtn = CCMenuItemSpriteExtra::create(pSpr, this, menu_selector(AILayoutPopup::onDistPresetClick));
             pBtn->setTag(val);
             distMenu->addChild(pBtn);

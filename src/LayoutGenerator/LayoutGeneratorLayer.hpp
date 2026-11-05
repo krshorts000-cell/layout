@@ -81,6 +81,7 @@ protected:
     bool m_wasGroundedLastFrame = true;
     float m_jumpArcStartX = 0.f;
     float m_jumpArcStartY = 0.f;
+    float m_jumpGroundY = 105.f;
 
 public:
     void buildStart();
