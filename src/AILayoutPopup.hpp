@@ -15,9 +15,13 @@ protected:
     int m_clicksCount = 120;
     int m_timingFrames = 4;
     float m_obstacleDist = 21.f;
+    bool m_fillBlocks = true;
+    int m_fillDepth = 1;
 
     CCLabelBMFont* m_lengthLabel = nullptr;
     CCLabelBMFont* m_distLabel = nullptr;
+    CCMenuItemSpriteExtra* m_blocksToggleBtn = nullptr;
+    std::vector<std::pair<int, CCMenuItemSpriteExtra*>> m_depthButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_diffButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_styleButtons;
 
@@ -124,6 +128,41 @@ protected:
         updateDistanceDisplay();
     }
 
+    void updateBlocksButton() {
+        if (!m_blocksToggleBtn) return;
+        m_blocksToggleBtn->removeAllChildren();
+
+        std::string text = m_fillBlocks ? "BLOCKS: ON" : "BLOCKS: OFF";
+        const char* bg = m_fillBlocks ? "GJ_button_01.png" : "GJ_button_06.png";
+        auto spr = ButtonSprite::create(text.c_str(), "bigFont.fnt", bg, 0.45f);
+        spr->setScale(0.78f);
+        m_blocksToggleBtn->addChild(spr);
+        m_blocksToggleBtn->setContentSize(spr->getContentSize() * 0.78f);
+        spr->setPosition(m_blocksToggleBtn->getContentSize() / 2.f);
+    }
+
+    void onToggleBlocks(CCObject*) {
+        m_fillBlocks = !m_fillBlocks;
+        updateBlocksButton();
+    }
+
+    void refreshDepthButtons() {
+        for (auto const& [depth, btn] : m_depthButtons) {
+            bool active = (depth == m_fillDepth && m_fillBlocks);
+            ccColor3B col = active ? ccc3(255, 255, 255) : ccc3(120, 120, 120);
+            btn->setColor(col);
+            if (auto rgba = typeinfo_cast<CCRGBAProtocol*>(btn->getNormalImage())) {
+                rgba->setColor(col);
+            }
+            btn->setScale(active ? 0.72f : 0.65f);
+        }
+    }
+
+    void onSelectDepth(CCObject* sender) {
+        m_fillDepth = sender->getTag();
+        refreshDepthButtons();
+    }
+
     void saveSettings() {
         auto mod = Mod::get();
         mod->setSettingValue<std::string>("ai-difficulty", m_selectedDifficulty);
@@ -131,6 +170,8 @@ protected:
         mod->setSettingValue<int64_t>("ai-clicks-count", m_clicksCount);
         mod->setSettingValue<int64_t>("timing-window-frames", m_timingFrames);
         mod->setSettingValue<double>("obstacle-distance", static_cast<double>(m_obstacleDist));
+        mod->setSettingValue<bool>("corridor-fill", m_fillBlocks);
+        mod->setSettingValue<int64_t>("corridor-fill-depth", m_fillDepth);
     }
 
     void onGenerateClick(CCObject*) {
@@ -174,6 +215,11 @@ protected:
         if (m_obstacleDist < 5.f) m_obstacleDist = 5.f;
         if (m_obstacleDist > 120.f) m_obstacleDist = 120.f;
 
+        m_fillBlocks = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+        m_fillDepth = mod->hasSetting("corridor-fill-depth") ? static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
+        if (m_fillDepth < 1) m_fillDepth = 1;
+        if (m_fillDepth > 3) m_fillDepth = 3;
+
         this->setTitle("Layout Generator");
 
         float w = m_size.width;
@@ -182,11 +228,11 @@ protected:
         // 1. DIFFICULTY SECTION
         auto diffLabel = CCLabelBMFont::create("Difficulty:", "goldFont.fnt");
         diffLabel->setScale(0.5f);
-        diffLabel->setPosition({w / 2.f, h - 42.f});
+        diffLabel->setPosition({w / 2.f, h - 38.f});
         m_mainLayer->addChild(diffLabel);
 
         auto diffMenu = CCMenu::create();
-        diffMenu->setPosition({w / 2.f, h - 64.f});
+        diffMenu->setPosition({w / 2.f, h - 60.f});
         diffMenu->setContentSize({360.f, 26.f});
         diffMenu->setLayout(RowLayout::create()->setGap(8.f));
 
@@ -215,11 +261,11 @@ protected:
         // 2. STYLE SECTION
         auto styleLabel = CCLabelBMFont::create("Gameplay Style:", "goldFont.fnt");
         styleLabel->setScale(0.5f);
-        styleLabel->setPosition({w / 2.f, h - 90.f});
+        styleLabel->setPosition({w / 2.f, h - 84.f});
         m_mainLayer->addChild(styleLabel);
 
         auto styleMenu = CCMenu::create();
-        styleMenu->setPosition({w / 2.f, h - 112.f});
+        styleMenu->setPosition({w / 2.f, h - 106.f});
         styleMenu->setContentSize({360.f, 26.f});
         styleMenu->setLayout(RowLayout::create()->setGap(8.f));
 
@@ -248,11 +294,11 @@ protected:
         // 3. OBSTACLE CLEARANCE & TIMING WINDOW (NO 2ND PATHS)
         auto distTitle = CCLabelBMFont::create("Click Window (Strict Timing):", "goldFont.fnt");
         distTitle->setScale(0.5f);
-        distTitle->setPosition({w / 2.f, h - 138.f});
+        distTitle->setPosition({w / 2.f, h - 130.f});
         m_mainLayer->addChild(distTitle);
 
         auto distMenu = CCMenu::create();
-        distMenu->setPosition({w / 2.f, h - 160.f});
+        distMenu->setPosition({w / 2.f, h - 152.f});
         distMenu->setContentSize({360.f, 26.f});
         distMenu->setLayout(RowLayout::create()->setGap(8.f));
 
@@ -292,11 +338,11 @@ protected:
         // 4. AI LENGTH SECTION
         auto lengthTitle = CCLabelBMFont::create("AI Macro Length:", "goldFont.fnt");
         lengthTitle->setScale(0.5f);
-        lengthTitle->setPosition({w / 2.f, h - 186.f});
+        lengthTitle->setPosition({w / 2.f, h - 176.f});
         m_mainLayer->addChild(lengthTitle);
 
         auto lengthMenu = CCMenu::create();
-        lengthMenu->setPosition({w / 2.f, h - 208.f});
+        lengthMenu->setPosition({w / 2.f, h - 198.f});
         lengthMenu->setContentSize({360.f, 26.f});
         lengthMenu->setLayout(RowLayout::create()->setGap(8.f));
 
@@ -331,9 +377,46 @@ protected:
         lengthMenu->updateLayout();
         m_mainLayer->addChild(lengthMenu);
 
-        // 5. BOTTOM ACTION ROW: [ AI GENERATE ] [ LIVE BUILD ] (Settings)
+        // 5. CORRIDOR BLOCKS (КВАДРАТЫ) TOGGLE SECTION
+        auto blocksTitle = CCLabelBMFont::create("Corridor Blocks (Квадраты):", "goldFont.fnt");
+        blocksTitle->setScale(0.5f);
+        blocksTitle->setPosition({w / 2.f, h - 222.f});
+        m_mainLayer->addChild(blocksTitle);
+
+        auto blocksMenu = CCMenu::create();
+        blocksMenu->setPosition({w / 2.f, h - 246.f});
+        blocksMenu->setContentSize({360.f, 26.f});
+        blocksMenu->setLayout(RowLayout::create()->setGap(10.f));
+
+        auto dummySpr = CCSprite::create();
+        m_blocksToggleBtn = CCMenuItemSpriteExtra::create(
+            dummySpr,
+            this,
+            menu_selector(AILayoutPopup::onToggleBlocks)
+        );
+        updateBlocksButton();
+        blocksMenu->addChild(m_blocksToggleBtn);
+
+        std::vector<std::pair<const char*, int>> depthPresets = {
+            {"1 Layer", 1},
+            {"2 Layers", 2}
+        };
+        for (auto const& [name, val] : depthPresets) {
+            auto pSpr = ButtonSprite::create(name, "chatFont.fnt", "GJ_button_04.png", 0.42f);
+            pSpr->setScale(0.68f);
+            auto pBtn = CCMenuItemSpriteExtra::create(pSpr, this, menu_selector(AILayoutPopup::onSelectDepth));
+            pBtn->setTag(val);
+            m_depthButtons.push_back({val, pBtn});
+            blocksMenu->addChild(pBtn);
+        }
+        refreshDepthButtons();
+
+        blocksMenu->updateLayout();
+        m_mainLayer->addChild(blocksMenu);
+
+        // 6. BOTTOM ACTION ROW: [ AI GENERATE ] [ LIVE BUILD ] (Settings)
         auto bottomMenu = CCMenu::create();
-        bottomMenu->setPosition({w / 2.f, 26.f});
+        bottomMenu->setPosition({w / 2.f, 24.f});
         bottomMenu->setContentSize({370.f, 40.f});
         bottomMenu->setLayout(RowLayout::create()->setGap(14.f));
 
@@ -362,7 +445,7 @@ protected:
 public:
     static AILayoutPopup* create(std::function<void()> onGenerate, std::function<void()> onLiveBuild) {
         auto ret = new AILayoutPopup();
-        if (ret && ret->setup(400.f, 275.f, std::move(onGenerate), std::move(onLiveBuild))) {
+        if (ret && ret->setup(400.f, 325.f, std::move(onGenerate), std::move(onLiveBuild))) {
             ret->autorelease();
             return ret;
         }

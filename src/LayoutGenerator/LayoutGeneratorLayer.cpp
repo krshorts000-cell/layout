@@ -110,8 +110,6 @@ void LayoutGeneratorLayer::buildStart()
     g.previousFrame = 0;
     g.state = state::recording;
 
-    placeCreditText("live route", CCPoint{45.f, 350.f});
-    placeCreditText("builder", CCPoint{45.f, 335.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
@@ -133,8 +131,6 @@ void LayoutGeneratorLayer::buildStartWithAIMacro()
     g.state = state::playing;
     m_usingAIMacro = true;
 
-    placeCreditText("ai layout", CCPoint{45.f, 350.f});
-    placeCreditText("shugg ai", CCPoint{45.f, 335.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
@@ -792,8 +788,9 @@ void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
                     createObject(ObjectId::BLOCK, CCPoint{snapX, snapY});
                 }
 
-                // Fill 1 layer below for solid appearance
-                if (snapY - 30.f >= m_boundsFloor - 15.f && getObjectNearPoint(CCPoint{snapX, snapY - 30.f}, 10.f, ObjectId::BLOCK) == nullptr)
+                // Fill 1 layer below for solid appearance if corridor-fill is enabled
+                bool fillBlocks = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+                if (fillBlocks && snapY - 30.f >= m_boundsFloor - 15.f && getObjectNearPoint(CCPoint{snapX, snapY - 30.f}, 10.f, ObjectId::BLOCK) == nullptr)
                 {
                     createObject(ObjectId::BLOCK, CCPoint{snapX, snapY - 30.f});
                 }
@@ -1456,14 +1453,20 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
                 slope->setRotation(isCeiling ? -90.f : 90.f);
             }
 
-            // Professional block design: fill solid cavern blocks above ceiling and below floor
+            // Clean block design (Screenshot 2): neat backing blocks behind slopes instead of endless grid
             if (corridorFill)
             {
+                int maxDepth = mod->hasSetting("corridor-fill-depth") ? 
+                    static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
+                if (maxDepth < 1) maxDepth = 1;
+
                 if (!isCeiling)
                 {
-                    // Floor: fill downward to bounds floor
-                    for (float fy = pos.y - 30.f; fy >= m_boundsFloor - 15.f; fy -= 30.f)
+                    // Floor: fill limited depth downward (1-2 layers behind slope)
+                    for (int d = 1; d <= maxDepth; ++d)
                     {
+                        float fy = pos.y - 30.f * d;
+                        if (fy < m_boundsFloor - 15.f) break;
                         CCPoint fillPos{pos.x, fy};
                         if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
                             getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr)
@@ -1474,9 +1477,11 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
                 }
                 else
                 {
-                    // Ceiling: fill upward to bounds ceiling
-                    for (float cy = pos.y + 30.f; cy <= m_boundsCeil + 15.f; cy += 30.f)
+                    // Ceiling: fill limited depth upward (1-2 layers behind slope)
+                    for (int d = 1; d <= maxDepth; ++d)
                     {
+                        float cy = pos.y + 30.f * d;
+                        if (cy > m_boundsCeil + 15.f) break;
                         CCPoint fillPos{pos.x, cy};
                         if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
                             getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr)

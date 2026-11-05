@@ -158,10 +158,23 @@
 			"default": true
 		},
 		"corridor-fill": {
-			"name": "Corridor Block Filling",
-			"description": "Fills solid cavern blocks above and below wave slopes for complete, professional level design.",
+			"name": "Corridor Blocks (Квадраты)",
+			"description": "Spawn backing square blocks behind corridor slopes. Toggle off for slopes only without square blocks.",
 			"type": "bool",
 			"default": true
+		},
+		"corridor-fill-depth": {
+			"name": "Block Fill Depth (Слои квадратов)",
+			"description": "Number of square block layers behind slopes (1 = neat thin cap like screenshot, 2 = 2 rows).",
+			"type": "int",
+			"default": 1,
+			"min": 1,
+			"max": 3,
+			"control": {
+				"arrows": true,
+				"arrow-step": 1,
+				"slider": false
+			}
 		},
 		"wave-spikes": {
 			"name": "Spikes on wave slopes",
