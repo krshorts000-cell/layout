@@ -97,107 +97,6 @@
 				3005
 			]
 		},
-		"frame-perfect": {
-			"name": "Frame perfect clicks",
-			"description": "Aligns spike corridors and obstacles with 1-frame precision so that every jump/click requires exact frame-perfect timing.",
-			"type": "bool",
-			"default": false
-		},
-		"title-live-builder": {
-			"name": "Live Route Builder",
-			"type": "title"
-		},
-		"live-builder-mode": {
-			"name": "Live Route Builder",
-			"description": "Automatically generates obstacles, floors, platforms, and corridors around player hitboxes while playing in editor playtest.",
-			"type": "bool",
-			"default": true
-		},
-		"live-build-click-only": {
-			"name": "Build Only When Clicking (Только при зажатии)",
-			"description": "Places obstacles and corridor blocks ONLY while holding the button. When released, blocks stop spawning.",
-			"type": "bool",
-			"default": false
-		},
-		"timing-window-frames": {
-			"name": "Click Timing Window (Frames)",
-			"description": "Exact number of frames of tolerance for jumps and corridors. 1 = Frame Perfect, 2-3 = Demon, 4-6 = Hard/Normal, 8-12 = Easy. Places obstacles so jumping/clicking is strictly mandatory with no second paths.",
-			"type": "int",
-			"default": 4,
-			"min": 1,
-			"max": 20,
-			"control": {
-				"arrows": true,
-				"arrow-step": 1,
-				"slider": true
-			}
-		},
-		"obstacle-distance": {
-			"name": "Obstacle Clearance Distance",
-			"description": "Distance in pixels between player hitboxes and generated obstacles. Lower values make gameplay tighter and harder, higher values make it wider and more forgiving.",
-			"type": "float",
-			"default": 35.0,
-			"min": 5.0,
-			"max": 150.0,
-			"control": {
-				"arrows": true,
-				"arrow-step": 5.0,
-				"slider": true
-			}
-		},
-		"live-ground-platforms": {
-			"name": "Live Ground Platforms",
-			"description": "Automatically places solid ground blocks beneath the player's feet when running and landing.",
-			"type": "bool",
-			"default": true
-		},
-		"live-jump-obstacles": {
-			"name": "Live Jump Obstacles",
-			"description": "Places hazard spikes along the ground under jump arcs between takeoff and landing.",
-			"type": "bool",
-			"default": true
-		},
-		"wave-slopes": {
-			"name": "Wave slopes",
-			"description": "Uses 45-degree slopes instead of vertical spikes for Wave boundary.",
-			"type": "bool",
-			"default": true
-		},
-		"layout-pattern-mode": {
-			"name": "Layout Pattern Mode",
-			"description": "Select obstacle generation style: 'Turn Pillars' spawns pillars at clicks and releases (like screenshots 2 and 3). 'Full Corridor' spawns a continuous tunnel.",
-			"type": "string",
-			"default": "Turn Pillars",
-			"one-of": [
-				"Turn Pillars",
-				"Full Corridor"
-			]
-		},
-		"corridor-fill": {
-			"name": "Corridor Blocks (Квадраты)",
-			"description": "Spawn backing square blocks behind corridor slopes. Toggle off for slopes only without square blocks.",
-			"type": "bool",
-			"default": true
-		},
-		"corridor-fill-depth": {
-			"name": "Block Fill Depth (Слои квадратов)",
-			"description": "Number of square block layers behind slopes (1 = neat thin cap like screenshot, 2 = 2 rows).",
-			"type": "int",
-			"default": 1,
-			"min": 1,
-			"max": 3,
-			"control": {
-				"arrows": true,
-				"arrow-step": 1,
-				"slider": false
-			}
-		},
-		"wave-spikes": {
-			"name": "Spikes on wave slopes",
-			"description": "Places additional hazard spikes along the wave corridor.",
-			"type": "bool",
-			"default": false
-		},
 		"spike-boundary-enabled": {
 			"name": "Spikes",
 			"type": "bool",
@@ -298,7 +197,7 @@
 		},
 		"ai-clicks-count": {
 			"name": "Layout Length (Clicks/Inputs)",
-			"description": "Number of input events (clicks & releases). 60 ≈ 15s, 120 ≈ 30s, 240 ≈ 60s",
+			"description": "Number of input events (clicks & releases). 60 \u2248 15s, 120 \u2248 30s, 240 \u2248 60s",
 			"type": "int",
 			"default": 120,
 			"min": 10,
