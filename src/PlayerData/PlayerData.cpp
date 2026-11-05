@@ -84,10 +84,7 @@ bool PlayerData::isCameraFree() const
 bool PlayerData::isClicking() const
 {
     if (!player) return false;
-    if (player->m_fields) {
-        return player->m_fields->m_isHoldingJump;
-    }
-    return false;
+    return player->m_fields->m_isHoldingJump;
 }
 
 bool PlayerData::isUpsideDown() const
