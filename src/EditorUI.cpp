@@ -117,9 +117,16 @@ class $modify(MyEditorUI, EditorUI)
     }
 
     void onOpenAIPopup(CCObject*) {
-        auto popup = AILayoutPopup::create([this]() {
-            this->onAIGenerate(nullptr);
-        });
+        auto popup = AILayoutPopup::create(
+            [this]() {
+                this->onAIGenerate(nullptr);
+            },
+            [this]() {
+                if (auto builder = getBuilder()) {
+                    builder->onBuildButton(nullptr);
+                }
+            }
+        );
         if (popup) {
             popup->show();
         }

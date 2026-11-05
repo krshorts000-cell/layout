@@ -68,6 +68,14 @@ void LayoutGeneratorLayer::reset()
     m_shouldTapTimer = 0;
     m_tapBalance = 3.f; // don't make the player jump straight away
     m_usingAIMacro = false;
+
+    // Reset Live Route Builder variables
+    m_lastLiveGroundX = -9999.f;
+    m_lastLiveGroundY = 105.f;
+    m_jumpArcPeakY = 0.f;
+    m_wasGroundedLastFrame = true;
+    m_jumpArcStartX = 0.f;
+    m_jumpArcStartY = 0.f;
 }
 
 void LayoutGeneratorLayer::sendClick(bool hold)
@@ -101,13 +109,14 @@ void LayoutGeneratorLayer::buildStart()
     g.previousFrame = 0;
     g.state = state::recording;
 
-    placeCreditText("made with", CCPoint{45.f, 350.f});
-    placeCreditText("layout generator", CCPoint{45.f, 335.f});
+    placeCreditText("live route", CCPoint{45.f, 350.f});
+    placeCreditText("builder", CCPoint{45.f, 335.f});
     if (auto editor = LevelEditorLayer::get()) {
         editor->m_gameState.m_currentProgress = 0;
         if (editor->m_player1) editor->m_player1->m_ignoreDamage = true;
         if (editor->m_player2) editor->m_player2->m_ignoreDamage = true;
     }
+    Notification::create("Live Builder: ON! Play to build layout around your route.", NotificationIcon::Success)->show();
     LevelEditorLayer::get()->m_editorUI->onPlaytest(nullptr);
 }
 
@@ -241,8 +250,16 @@ void LayoutGeneratorLayer::update(float dt)
 
     // place object on beat (spb = seconds per beat)
     float spb = 60.f / mod->getSettingValue<float>("bpm");
-    bool usePlayerClicks = m_usingAIMacro || mod->getSettingValue<bool>("use-player-clicks");
+    bool isLiveBuilder = !m_usingAIMacro && (mod->hasSetting("live-builder-mode") ? mod->getSettingValue<bool>("live-builder-mode") : true);
+    bool usePlayerClicks = m_usingAIMacro || isLiveBuilder || mod->getSettingValue<bool>("use-player-clicks");
     bool useRandomClicks = !usePlayerClicks;
+    bool isGroundedMode = (pd->gamemode & (PoolState::GAMEMODE_CUBE | PoolState::GAMEMODE_ROBOT | PoolState::GAMEMODE_BALL | PoolState::GAMEMODE_SPIDER)) != 0;
+
+    if (isLiveBuilder && isGroundedMode)
+    {
+        updateLiveGroundedObstacles(pd);
+    }
+
     bool onBeat = false;
     bool onHalfBeat = false;
     if ((int)(m_elapsedTime / spb * 2.f) > m_halfBeatCount)
@@ -337,6 +354,10 @@ void LayoutGeneratorLayer::update(float dt)
 
     // place new object
     const PoolObject *fish = nullptr;
+    if (isLiveBuilder)
+    {
+        shouldPlace = false;
+    }
     if (shouldPlace)
     {
         // only change gamemode, speed, and size on beat
@@ -442,9 +463,10 @@ void LayoutGeneratorLayer::update(float dt)
     // spikes v2
     if (mod->getSettingValue<bool>("spike-boundary-enabled"))
     {
-        const bool isFramePerfect = mod->getSettingValue<bool>("frame-perfect");
-        const float configuredMargin = mod->getSettingValue<float>("spike-margin");
-        const float spikeMargin = isFramePerfect ? 0.f : configuredMargin;
+        const bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
+        float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+        const float configuredMargin = mod->hasSetting("spike-margin") ? mod->getSettingValue<float>("spike-margin") : obstacleDist;
+        const float spikeMargin = isFramePerfect ? 0.f : obstacleDist;
         const CCSize playerSize = pd->getRectSize();
 
         // slightly larger than a spike hitbox, because just grazing the side of a spike kills you
@@ -552,7 +574,7 @@ void LayoutGeneratorLayer::update(float dt)
         {
             // Frame-perfect clearance (1.5f tolerance: clicking 1 frame off results in 10+ units displacement and instant death)
             float midEvilSpikeMargin = (midTrail.rectSize.height + spikeSize.height) / 2.f;
-            float safeClearance = isFramePerfect ? (midEvilSpikeMargin + 1.5f) : (midEvilSpikeMargin + 8.f);
+            float safeClearance = isFramePerfect ? (midEvilSpikeMargin + 1.5f) : (midEvilSpikeMargin + obstacleDist);
             if (yMin > midTrail.pos.y - safeClearance)
                 yMin = midTrail.pos.y - safeClearance;
             if (yMax < midTrail.pos.y + safeClearance)
@@ -655,6 +677,98 @@ void LayoutGeneratorLayer::update(float dt)
     m_elapsedTime += dt;
     m_isClickingLastFrame = pd->isClicking();
     m_lastPlayerGamemode = pd->gamemode;
+}
+
+void LayoutGeneratorLayer::updateLiveGroundedObstacles(PlayerData* pd)
+{
+    auto mod = Mod::get();
+    bool liveGround = mod->hasSetting("live-ground-platforms") ? mod->getSettingValue<bool>("live-ground-platforms") : true;
+    bool liveJumpObstacles = mod->hasSetting("live-jump-obstacles") ? mod->getSettingValue<bool>("live-jump-obstacles") : true;
+    float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
+
+    bool isGrounded = pd->isOnGround();
+    float halfHeight = pd->getRectSize().height / 2.f;
+    float playerX = pd->pos.x;
+    float playerY = pd->pos.y;
+    float snapX = std::round((playerX - 15.f) / 30.f) * 30.f + 15.f;
+
+    if (isGrounded)
+    {
+        // Player is grounded: running on the floor or a platform
+        float footY = playerY - halfHeight;
+        float blockCenterY = footY - 15.f;
+        float snapY = std::round((blockCenterY - 15.f) / 30.f) * 30.f + 15.f;
+
+        if (liveGround)
+        {
+            if (snapX > m_lastLiveGroundX + 15.f || m_lastLiveGroundX < -9000.f)
+            {
+                // Fill any skipped grid columns if frame skipped
+                if (m_lastLiveGroundX > -9000.f && snapX > m_lastLiveGroundX + 35.f)
+                {
+                    for (float interX = m_lastLiveGroundX + 30.f; interX < snapX; interX += 30.f)
+                    {
+                        if (getObjectNearPoint(CCPoint{interX, snapY}, 10.f, ObjectId::BLOCK) == nullptr)
+                        {
+                            createObject(ObjectId::BLOCK, CCPoint{interX, snapY});
+                        }
+                    }
+                }
+
+                // Place walking surface block
+                if (getObjectNearPoint(CCPoint{snapX, snapY}, 10.f, ObjectId::BLOCK) == nullptr)
+                {
+                    createObject(ObjectId::BLOCK, CCPoint{snapX, snapY});
+                }
+
+                // Fill 1 layer below for solid appearance
+                if (snapY - 30.f >= m_boundsFloor - 15.f && getObjectNearPoint(CCPoint{snapX, snapY - 30.f}, 10.f, ObjectId::BLOCK) == nullptr)
+                {
+                    createObject(ObjectId::BLOCK, CCPoint{snapX, snapY - 30.f});
+                }
+
+                m_lastLiveGroundX = snapX;
+                m_lastLiveGroundY = snapY;
+            }
+        }
+
+        m_wasGroundedLastFrame = true;
+        m_jumpArcPeakY = 0.f;
+    }
+    else
+    {
+        // Player is airborne (jumping)
+        if (m_wasGroundedLastFrame)
+        {
+            m_jumpArcStartX = playerX;
+            m_jumpArcStartY = playerY;
+            m_jumpArcPeakY = playerY;
+            m_wasGroundedLastFrame = false;
+        }
+
+        m_jumpArcPeakY = std::max(m_jumpArcPeakY, playerY);
+
+        if (liveJumpObstacles && m_lastLiveGroundX > -9000.f)
+        {
+            float playerFeetY = playerY - halfHeight;
+            float groundSurfaceY = m_lastLiveGroundY + 15.f;
+            float heightAboveGround = playerFeetY - groundSurfaceY;
+
+            // Place spikes along the ground under jump arc at obstacle clearance distance
+            if (heightAboveGround >= obstacleDist * 0.6f && heightAboveGround <= 200.f)
+            {
+                if (snapX > m_lastSpikeBottomPos.x + 20.f || m_lastSpikeBottomPos.x <= 0.f)
+                {
+                    float spikeY = m_lastLiveGroundY + 30.f;
+                    if (getObjectNearPoint(CCPoint{snapX, spikeY}, 12.f, ObjectId::SPIKE) == nullptr)
+                    {
+                        createObject(ObjectId::SPIKE, CCPoint{snapX, spikeY});
+                        m_lastSpikeBottomPos = CCPoint{snapX, spikeY};
+                    }
+                }
+            }
+        }
+    }
 }
 
 GameObject *LayoutGeneratorLayer::createObject(int key, CCPoint position)
@@ -1114,8 +1228,9 @@ void LayoutGeneratorLayer::placeSpikeBoundary(
         bool isRising = (midTrail.getSign() > 0) ? midTrail.isClicking : !midTrail.isClicking;
 
         bool isFramePerfect = mod->hasSetting("frame-perfect") && mod->getSettingValue<bool>("frame-perfect");
+        float obstacleDist = mod->hasSetting("obstacle-distance") ? static_cast<float>(mod->getSettingValue<double>("obstacle-distance")) : 35.f;
         float halfHeight = midTrail.rectSize.height / 2.f;
-        float clearance = isFramePerfect ? 1.5f : 8.f;
+        float clearance = isFramePerfect ? 1.5f : obstacleDist;
 
         // Snap X to standard 30x30 Geometry Dash grid (15, 45, 75, 105, 135...)
         float snapX = std::round((bottomPos.x - 15.f) / 30.f) * 30.f + 15.f;

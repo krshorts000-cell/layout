@@ -101,6 +101,41 @@
 			"name": "Frame perfect clicks",
 			"description": "Aligns spike corridors and obstacles with 1-frame precision so that every jump/click requires exact frame-perfect timing.",
 			"type": "bool",
+			"default": false
+		},
+		"title-live-builder": {
+			"name": "Live Route Builder",
+			"type": "title"
+		},
+		"live-builder-mode": {
+			"name": "Live Route Builder",
+			"description": "Automatically generates obstacles, floors, platforms, and corridors around player hitboxes while playing in editor playtest.",
+			"type": "bool",
+			"default": true
+		},
+		"obstacle-distance": {
+			"name": "Obstacle Clearance Distance",
+			"description": "Distance in pixels between player hitboxes and generated obstacles. Lower values make gameplay tighter and harder, higher values make it wider and more forgiving.",
+			"type": "float",
+			"default": 35.0,
+			"min": 5.0,
+			"max": 150.0,
+			"control": {
+				"arrows": true,
+				"arrow-step": 5.0,
+				"slider": true
+			}
+		},
+		"live-ground-platforms": {
+			"name": "Live Ground Platforms",
+			"description": "Automatically places solid ground blocks beneath the player's feet when running and landing.",
+			"type": "bool",
+			"default": true
+		},
+		"live-jump-obstacles": {
+			"name": "Live Jump Obstacles",
+			"description": "Places hazard spikes along the ground under jump arcs between takeoff and landing.",
+			"type": "bool",
 			"default": true
 		},
 		"wave-slopes": {

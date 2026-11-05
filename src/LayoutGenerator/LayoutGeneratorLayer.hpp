@@ -74,6 +74,14 @@ protected:
 
     float m_tapBalance = 0.f;
 
+    // Live Route Builder variables
+    float m_lastLiveGroundX = -9999.f;
+    float m_lastLiveGroundY = 105.f;
+    float m_jumpArcPeakY = 0.f;
+    bool m_wasGroundedLastFrame = true;
+    float m_jumpArcStartX = 0.f;
+    float m_jumpArcStartY = 0.f;
+
 public:
     void buildStart();
     void buildStartWithAIMacro();
@@ -86,6 +94,8 @@ protected:
     void reset();
 
     void update(float dt) override;
+
+    void updateLiveGroundedObstacles(PlayerData* pd);
 
     // creates an object in the LevelEditorLayer and adds it to m_placedObjectUniqueIds
     GameObject *createObject(int key, CCPoint position);
