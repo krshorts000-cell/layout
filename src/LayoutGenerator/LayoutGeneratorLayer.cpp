@@ -609,7 +609,28 @@ void LayoutGeneratorLayer::update(float dt)
 
             // In Live Builder mode for grounded gamemodes, updateLiveGroundedObstacles handles ground and jump obstacles.
             // Avoid duplicate/overlapping spike placements by skipping placeSpikeBoundary for grounded Live Builder.
-            if (!(isLiveBuilder && isGroundedMode))
+            std::string patternMode = mod->hasSetting("layout-pattern-mode") ? 
+                mod->getSettingValue<std::string>("layout-pattern-mode") : "Turn Pillars";
+            bool isWaveMode = (pd->state & PoolState::GAMEMODE_WAVE) != 0;
+            bool useTurnPillars = isWaveMode && (patternMode == "Turn Pillars");
+
+            if (useTurnPillars)
+            {
+                bool isClickingNow = pd->isClicking();
+                bool justClicked = isClickingNow && !m_isClickingLastFrame;
+                bool justReleased = !isClickingNow && m_isClickingLastFrame;
+
+                float clearance = isFramePerfect ? 1.5f : obstacleDist;
+                if (justClicked)
+                {
+                    placeClickPillar(pd->pos, midTrail, clearance);
+                }
+                else if (justReleased)
+                {
+                    placeReleasePillar(pd->pos, midTrail, clearance);
+                }
+            }
+            else if (!(isLiveBuilder && isGroundedMode))
             {
                 bool onlyOnClick = mod->hasSetting("live-build-click-only") && mod->getSettingValue<bool>("live-build-click-only");
                 if (isLiveBuilder && onlyOnClick && !midTrail.isClicking)
@@ -1496,6 +1517,96 @@ void LayoutGeneratorLayer::placeSlopeInBounds(CCPoint pos, const PlayerTrailData
                         {
                             createObject(ObjectId::BLOCK, fillPos);
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void LayoutGeneratorLayer::placeClickPillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance)
+{
+    auto mod = Mod::get();
+    bool corridorFill = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+    int maxDepth = mod->hasSetting("corridor-fill-depth") ? 
+        static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
+    if (maxDepth < 1) maxDepth = 1;
+
+    float halfHeight = trail.rectSize.height / 2.f;
+    float rawBottomY = playerPos.y - halfHeight - clearance - 15.f;
+    float snapBottomY = std::round((rawBottomY - 15.f) / 30.f) * 30.f + 15.f;
+    if (snapBottomY < m_boundsFloor + 15.f)
+        snapBottomY = m_boundsFloor + 15.f;
+    float snapX = std::round((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
+
+    // Floor ramp slope facing UP-RIGHT (rotation 0) at snapBottomY
+    CCPoint col0SlopePos{snapX, snapBottomY};
+    if (getObjectNearPoint(col0SlopePos, 14.f, ObjectId::SLOPE) == nullptr &&
+        getObjectNearPoint(col0SlopePos, 14.f, ObjectId::BLOCK) == nullptr)
+    {
+        if (auto slope = createObject(ObjectId::SLOPE, col0SlopePos))
+        {
+            slope->setRotation(0.f);
+            slope->setFlipX(false);
+            slope->setFlipY(false);
+
+            if (corridorFill)
+            {
+                for (int d = 1; d <= maxDepth; ++d)
+                {
+                    float fy = snapBottomY - 30.f * d;
+                    if (fy < m_boundsFloor - 15.f) break;
+                    CCPoint fillPos{snapX, fy};
+                    if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                        getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr &&
+                        isSafeToPlace(ObjectId::BLOCK, fillPos, false, 2.f))
+                    {
+                        createObject(ObjectId::BLOCK, fillPos);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void LayoutGeneratorLayer::placeReleasePillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance)
+{
+    auto mod = Mod::get();
+    bool corridorFill = mod->hasSetting("corridor-fill") ? mod->getSettingValue<bool>("corridor-fill") : true;
+    int maxDepth = mod->hasSetting("corridor-fill-depth") ? 
+        static_cast<int>(mod->getSettingValue<int64_t>("corridor-fill-depth")) : 1;
+    if (maxDepth < 1) maxDepth = 1;
+
+    float halfHeight = trail.rectSize.height / 2.f;
+    float rawTopY = playerPos.y + halfHeight + clearance + 15.f;
+    float snapTopY = std::round((rawTopY - 15.f) / 30.f) * 30.f + 15.f;
+    if (snapTopY > m_boundsCeil - 15.f)
+        snapTopY = m_boundsCeil - 15.f;
+    float snapX = std::round((playerPos.x - 15.f) / 30.f) * 30.f + 15.f;
+
+    // Ceiling slope facing DOWN-LEFT (-90) at snapTopY
+    CCPoint col0SlopePos{snapX, snapTopY};
+    if (getObjectNearPoint(col0SlopePos, 14.f, ObjectId::SLOPE) == nullptr &&
+        getObjectNearPoint(col0SlopePos, 14.f, ObjectId::BLOCK) == nullptr)
+    {
+        if (auto slope = createObject(ObjectId::SLOPE, col0SlopePos))
+        {
+            slope->setRotation(-90.f);
+            slope->setFlipX(false);
+            slope->setFlipY(false);
+
+            if (corridorFill)
+            {
+                for (int d = 1; d <= maxDepth; ++d)
+                {
+                    float cy = snapTopY + 30.f * d;
+                    if (cy > m_boundsCeil + 15.f) break;
+                    CCPoint fillPos{snapX, cy};
+                    if (getObjectNearPoint(fillPos, 12.f, ObjectId::BLOCK) == nullptr &&
+                        getObjectNearPoint(fillPos, 12.f, ObjectId::SLOPE) == nullptr &&
+                        isSafeToPlace(ObjectId::BLOCK, fillPos, false, 2.f))
+                    {
+                        createObject(ObjectId::BLOCK, fillPos);
                     }
                 }
             }

@@ -163,6 +163,16 @@
 			"type": "bool",
 			"default": true
 		},
+		"layout-pattern-mode": {
+			"name": "Layout Pattern Mode",
+			"description": "Select obstacle generation style: 'Turn Pillars' spawns pillars at clicks and releases (like screenshots 2 and 3). 'Full Corridor' spawns a continuous tunnel.",
+			"type": "string",
+			"default": "Turn Pillars",
+			"one-of": [
+				"Turn Pillars",
+				"Full Corridor"
+			]
+		},
 		"corridor-fill": {
 			"name": "Corridor Blocks (Квадраты)",
 			"description": "Spawn backing square blocks behind corridor slopes. Toggle off for slopes only without square blocks.",

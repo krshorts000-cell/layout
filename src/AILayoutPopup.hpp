@@ -18,11 +18,13 @@ protected:
     bool m_fillBlocks = true;
     int m_fillDepth = 1;
     bool m_clickOnly = false;
+    std::string m_patternMode = "Turn Pillars";
 
     CCLabelBMFont* m_lengthLabel = nullptr;
     CCLabelBMFont* m_distLabel = nullptr;
     CCMenuItemSpriteExtra* m_blocksToggleBtn = nullptr;
     CCMenuItemSpriteExtra* m_clickOnlyBtn = nullptr;
+    CCMenuItemSpriteExtra* m_patternModeBtn = nullptr;
     std::vector<std::pair<int, CCMenuItemSpriteExtra*>> m_depthButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_diffButtons;
     std::vector<std::pair<std::string, CCMenuItemSpriteExtra*>> m_styleButtons;
@@ -183,6 +185,29 @@ protected:
         updateClickOnlyButton();
     }
 
+    void updatePatternModeButton() {
+        if (!m_patternModeBtn) return;
+        m_patternModeBtn->removeAllChildren();
+
+        bool isPillars = (m_patternMode == "Turn Pillars");
+        std::string text = isPillars ? "PILLARS" : "CORRIDOR";
+        const char* bg = isPillars ? "GJ_button_01.png" : "GJ_button_04.png";
+        auto spr = ButtonSprite::create(text.c_str(), "chatFont.fnt", bg, 0.42f);
+        spr->setScale(0.68f);
+        m_patternModeBtn->addChild(spr);
+        m_patternModeBtn->setContentSize(spr->getContentSize() * 0.68f);
+        spr->setPosition(m_patternModeBtn->getContentSize() / 2.f);
+    }
+
+    void onTogglePatternMode(CCObject*) {
+        if (m_patternMode == "Turn Pillars") {
+            m_patternMode = "Full Corridor";
+        } else {
+            m_patternMode = "Turn Pillars";
+        }
+        updatePatternModeButton();
+    }
+
     void saveSettings() {
         auto mod = Mod::get();
         mod->setSettingValue<std::string>("ai-difficulty", m_selectedDifficulty);
@@ -193,6 +218,7 @@ protected:
         mod->setSettingValue<bool>("corridor-fill", m_fillBlocks);
         mod->setSettingValue<int64_t>("corridor-fill-depth", m_fillDepth);
         mod->setSettingValue<bool>("live-build-click-only", m_clickOnly);
+        mod->setSettingValue<std::string>("layout-pattern-mode", m_patternMode);
     }
 
     void onGenerateClick(CCObject*) {
@@ -242,6 +268,7 @@ protected:
         if (m_fillDepth > 3) m_fillDepth = 3;
 
         m_clickOnly = mod->hasSetting("live-build-click-only") ? mod->getSettingValue<bool>("live-build-click-only") : false;
+        m_patternMode = mod->hasSetting("layout-pattern-mode") ? mod->getSettingValue<std::string>("layout-pattern-mode") : "Turn Pillars";
 
         this->setTitle("Layout Generator");
 
@@ -442,6 +469,15 @@ protected:
         );
         updateClickOnlyButton();
         blocksMenu->addChild(m_clickOnlyBtn);
+
+        auto patternDummy = CCSprite::create();
+        m_patternModeBtn = CCMenuItemSpriteExtra::create(
+            patternDummy,
+            this,
+            menu_selector(AILayoutPopup::onTogglePatternMode)
+        );
+        updatePatternModeButton();
+        blocksMenu->addChild(m_patternModeBtn);
 
         blocksMenu->updateLayout();
         m_mainLayer->addChild(blocksMenu);

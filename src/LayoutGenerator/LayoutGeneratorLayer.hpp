@@ -131,6 +131,9 @@ protected:
 
     void placeSlopeInBounds(CCPoint pos, const PlayerTrailData &trail, bool isCeiling, bool isRising);
 
+    void placeClickPillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance);
+    void placeReleasePillar(CCPoint playerPos, const PlayerTrailData &trail, float clearance);
+
     bool doesRectInterfereWithTrail(CCRect rect, float playerX, bool isBlock, bool isMini);
 
     bool isSafeToPlace(int objectId, CCPoint pos, bool flipY, float clearance);
