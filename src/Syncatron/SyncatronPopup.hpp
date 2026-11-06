@@ -25,11 +25,13 @@ protected:
     CCMenuItemSpriteExtra* m_playBtn = nullptr;
     CCMenuItemSpriteExtra* m_snapBtn = nullptr;
     CCMenuItemSpriteExtra* m_modeBtn = nullptr;
+    CCMenuItemSpriteExtra* m_sensBtn = nullptr;
 
     std::string m_songPath;
     float m_songLength = 0.f;
     bool m_isPlaying = false;
     bool m_deleteMode = false;
+    int m_beatSensitivity = 1;
 
     CCPoint m_touchStartPos;
     CCPoint m_touchPrevPos;
@@ -191,6 +193,50 @@ protected:
         }
     }
 
+    void updateSensButton() {
+        if (!m_sensBtn) return;
+        m_sensBtn->removeAllChildren();
+        const char* bg = "GJ_button_01.png";
+        std::string txt = "SENS: MED";
+        if (m_beatSensitivity == 0) {
+            bg = "GJ_button_04.png";
+            txt = "SENS: LOW";
+        } else if (m_beatSensitivity == 2) {
+            bg = "GJ_button_02.png";
+            txt = "SENS: HIGH";
+        }
+        auto spr = ButtonSprite::create(txt.c_str(), "chatFont.fnt", bg, 0.40f);
+        spr->setScale(0.65f);
+        m_sensBtn->addChild(spr);
+        m_sensBtn->setContentSize(spr->getContentSize() * 0.65f);
+        spr->setPosition(m_sensBtn->getContentSize() / 2.f);
+    }
+
+    void onSensToggle(CCObject*) {
+        m_beatSensitivity = (m_beatSensitivity + 1) % 3;
+        updateSensButton();
+    }
+
+    void onAutoBeats(CCObject*) {
+        if (!m_waveform) return;
+        int detected = Syncatron::autoDetectBeats(m_waveform->getSamples(), m_waveform->getSongLength(), m_beatSensitivity);
+        if (detected > 0) {
+            m_waveform->redraw();
+            updateStatus();
+        }
+    }
+
+    void onImportAudacity(CCObject*) {
+        if (Syncatron::pickAndImportAudacityLabels()) {
+            if (m_waveform) m_waveform->redraw();
+            updateStatus();
+        }
+    }
+
+    void onExportAudacity(CCObject*) {
+        Syncatron::pickAndExportAudacityLabels();
+    }
+
     void onClearClick(CCObject*) {
         Syncatron::clearGuidelines();
         if (m_waveform) m_waveform->redraw();
@@ -338,7 +384,7 @@ protected:
         if (!Popup::init(width, height)) return false;
         m_onBuild = std::move(onBuild);
 
-        this->setTitle("Music Waveform & Timeline Sync");
+        this->setTitle("Audacity Sync-a-tron");
 
         CCDirector::sharedDirector()->getMouseDispatcher()->addDelegate(this);
 
@@ -347,26 +393,26 @@ protected:
 
         Syncatron::loadGuidelinesFromLevel();
 
-        // 1. TOP HEADER: Track Title & Info
+        // 1. TOP HEADER: Track Title & Controls Info
         std::string songTitle = AudioWaveformManager::getCurrentSongTitle();
         if (songTitle.length() > 38) songTitle = songTitle.substr(0, 35) + "...";
 
         m_titleLabel = CCLabelBMFont::create(songTitle.c_str(), "goldFont.fnt");
-        m_titleLabel->setScale(0.52f);
-        m_titleLabel->setPosition({w / 2.f, h - 38.f});
+        m_titleLabel->setScale(0.50f);
+        m_titleLabel->setPosition({w / 2.f, h - 36.f});
         m_mainLayer->addChild(m_titleLabel);
 
-        m_infoLabel = CCLabelBMFont::create("L-Click: ADD | R-Click / Shift: DELETE | Scroll: ZOOM", "chatFont.fnt");
-        m_infoLabel->setScale(0.60f);
+        m_infoLabel = CCLabelBMFont::create("L-Click: ADD | R-Click: DELETE | Scroll: ZOOM", "chatFont.fnt");
+        m_infoLabel->setScale(0.58f);
         m_infoLabel->setColor(ccc3(180, 240, 255));
-        m_infoLabel->setPosition({w / 2.f, h - 56.f});
+        m_infoLabel->setPosition({w / 2.f, h - 52.f});
         m_mainLayer->addChild(m_infoLabel);
 
-        // 2. MIDDLE: INTERACTIVE WAVEFORM CANVAS
-        float waveW = 440.f;
-        float waveH = 85.f;
+        // 2. INTERACTIVE AUDACITY WAVEFORM & TIME RULER CANVAS
+        float waveW = 450.f;
+        float waveH = 92.f;
         m_waveform = WaveformTimelineNode::create(waveW, waveH);
-        m_waveform->setPosition({w / 2.f, h - 110.f});
+        m_waveform->setPosition({w / 2.f, h - 105.f});
         m_waveform->setOnGuidelineChange([this](float timeSec, bool added) {
             Notification::create(
                 fmt::format("{} guide at {:.2f}s", added ? "Added" : "Deleted", timeSec),
@@ -392,122 +438,155 @@ protected:
             );
         }
 
-        // 3. ZOOM ROW: [- ZOOM] [FULL] [30s] [10s] [3s] [1s] [+ ZOOM]
-        auto zoomMenu = CCMenu::create();
-        zoomMenu->setPosition({w / 2.f, h - 168.f});
-        zoomMenu->setContentSize({440.f, 26.f});
-        zoomMenu->setLayout(RowLayout::create()->setGap(5.f));
+        // 3. AUDACITY AI & LABELS ROW (y = h - 162.f):
+        // [ BEAT FINDER ] [ SENS: MED ] [ IMPORT LABELS ] [ EXPORT LABELS ] [ .OSU ]
+        auto audacityMenu = CCMenu::create();
+        audacityMenu->setPosition({w / 2.f, h - 162.f});
+        audacityMenu->setContentSize({450.f, 26.f});
+        audacityMenu->setLayout(RowLayout::create()->setGap(6.f));
 
-        auto zoomOutSpr = ButtonSprite::create("- ZOOM", "chatFont.fnt", "GJ_button_04.png", 0.42f);
-        zoomOutSpr->setScale(0.68f);
-        auto zoomOutBtn = CCMenuItemSpriteExtra::create(zoomOutSpr, this, menu_selector(SyncatronPopup::onZoomStep));
-        zoomOutBtn->setTag(-1);
-        zoomMenu->addChild(zoomOutBtn);
+        auto beatSpr = ButtonSprite::create("BEAT FINDER", "chatFont.fnt", "GJ_button_01.png", 0.40f);
+        beatSpr->setScale(0.66f);
+        auto beatBtn = CCMenuItemSpriteExtra::create(beatSpr, this, menu_selector(SyncatronPopup::onAutoBeats));
+        audacityMenu->addChild(beatBtn);
 
-        std::vector<std::pair<const char*, int>> presets = {
-            {"FULL", 0},
-            {"30s", 30},
-            {"10s", 10},
-            {"3s", 3},
-            {"1s", 1}
-        };
-        for (auto const& [name, sec] : presets) {
-            auto pSpr = ButtonSprite::create(name, "chatFont.fnt", (sec == 0) ? "GJ_button_05.png" : "GJ_button_04.png", 0.42f);
-            pSpr->setScale(0.68f);
-            auto pBtn = CCMenuItemSpriteExtra::create(pSpr, this, menu_selector(SyncatronPopup::onZoomPreset));
-            pBtn->setTag(sec);
-            zoomMenu->addChild(pBtn);
-        }
+        auto sensDummy = CCSprite::create();
+        m_sensBtn = CCMenuItemSpriteExtra::create(sensDummy, this, menu_selector(SyncatronPopup::onSensToggle));
+        updateSensButton();
+        audacityMenu->addChild(m_sensBtn);
 
-        auto zoomInSpr = ButtonSprite::create("+ ZOOM", "chatFont.fnt", "GJ_button_04.png", 0.42f);
-        zoomInSpr->setScale(0.68f);
-        auto zoomInBtn = CCMenuItemSpriteExtra::create(zoomInSpr, this, menu_selector(SyncatronPopup::onZoomStep));
-        zoomInBtn->setTag(1);
-        zoomMenu->addChild(zoomInBtn);
+        auto impSpr = ButtonSprite::create("IMPORT LABELS", "chatFont.fnt", "GJ_button_05.png", 0.40f);
+        impSpr->setScale(0.66f);
+        auto impBtn = CCMenuItemSpriteExtra::create(impSpr, this, menu_selector(SyncatronPopup::onImportAudacity));
+        audacityMenu->addChild(impBtn);
 
-        zoomMenu->updateLayout();
-        m_mainLayer->addChild(zoomMenu);
+        auto expSpr = ButtonSprite::create("EXPORT LABELS", "chatFont.fnt", "GJ_button_05.png", 0.40f);
+        expSpr->setScale(0.66f);
+        auto expBtn = CCMenuItemSpriteExtra::create(expSpr, this, menu_selector(SyncatronPopup::onExportAudacity));
+        audacityMenu->addChild(expBtn);
 
-        // 4. ACTION & MODE ROW: [Play] [MODE: ADD/DEL] [+ AT CURSOR] [- AT CURSOR] [- UNDO] [SNAP]
-        auto actMenu = CCMenu::create();
-        actMenu->setPosition({w / 2.f, h - 198.f});
-        actMenu->setContentSize({440.f, 28.f});
-        actMenu->setLayout(RowLayout::create()->setGap(6.f));
+        auto osuSpr = ButtonSprite::create(".OSU MAP", "chatFont.fnt", "GJ_button_04.png", 0.40f);
+        osuSpr->setScale(0.66f);
+        auto osuBtn = CCMenuItemSpriteExtra::create(osuSpr, this, menu_selector(SyncatronPopup::onBrowseOsu));
+        audacityMenu->addChild(osuBtn);
 
-        auto playDummy = CCSprite::create();
-        m_playBtn = CCMenuItemSpriteExtra::create(playDummy, this, menu_selector(SyncatronPopup::onPlayToggle));
-        updatePlayButton();
-        actMenu->addChild(m_playBtn);
+        audacityMenu->updateLayout();
+        m_mainLayer->addChild(audacityMenu);
+
+        // 4. EDIT & PRECISION ROW (y = h - 192.f):
+        // [ MODE: ADD/DEL ] [ + CURSOR ] [ - CURSOR ] [ - UNDO ] [ SNAP ] [ CLEAR ALL ]
+        auto editMenu = CCMenu::create();
+        editMenu->setPosition({w / 2.f, h - 192.f});
+        editMenu->setContentSize({450.f, 26.f});
+        editMenu->setLayout(RowLayout::create()->setGap(6.f));
 
         auto modeDummy = CCSprite::create();
         m_modeBtn = CCMenuItemSpriteExtra::create(modeDummy, this, menu_selector(SyncatronPopup::onModeToggle));
         updateModeButton();
-        actMenu->addChild(m_modeBtn);
+        editMenu->addChild(m_modeBtn);
 
-        auto addCurSpr = ButtonSprite::create("+ CURSOR", "chatFont.fnt", "GJ_button_01.png", 0.42f);
-        addCurSpr->setScale(0.68f);
+        auto addCurSpr = ButtonSprite::create("+ CURSOR", "chatFont.fnt", "GJ_button_01.png", 0.40f);
+        addCurSpr->setScale(0.66f);
         auto addCurBtn = CCMenuItemSpriteExtra::create(addCurSpr, this, menu_selector(SyncatronPopup::onAddAtCursor));
-        actMenu->addChild(addCurBtn);
+        editMenu->addChild(addCurBtn);
 
-        auto delCurSpr = ButtonSprite::create("- CURSOR", "chatFont.fnt", "GJ_button_06.png", 0.42f);
-        delCurSpr->setScale(0.68f);
+        auto delCurSpr = ButtonSprite::create("- CURSOR", "chatFont.fnt", "GJ_button_06.png", 0.40f);
+        delCurSpr->setScale(0.66f);
         auto delCurBtn = CCMenuItemSpriteExtra::create(delCurSpr, this, menu_selector(SyncatronPopup::onDeleteAtCursor));
-        actMenu->addChild(delCurBtn);
+        editMenu->addChild(delCurBtn);
 
-        auto undoSpr = ButtonSprite::create("- UNDO", "chatFont.fnt", "GJ_button_05.png", 0.42f);
-        undoSpr->setScale(0.68f);
+        auto undoSpr = ButtonSprite::create("- UNDO", "chatFont.fnt", "GJ_button_05.png", 0.40f);
+        undoSpr->setScale(0.66f);
         auto undoBtn = CCMenuItemSpriteExtra::create(undoSpr, this, menu_selector(SyncatronPopup::onUndoLast));
-        actMenu->addChild(undoBtn);
+        editMenu->addChild(undoBtn);
 
         auto snapDummy = CCSprite::create();
         m_snapBtn = CCMenuItemSpriteExtra::create(snapDummy, this, menu_selector(SyncatronPopup::onSnapToggle));
         updateSnapButton();
-        actMenu->addChild(m_snapBtn);
+        editMenu->addChild(m_snapBtn);
 
-        actMenu->updateLayout();
-        m_mainLayer->addChild(actMenu);
+        auto clearSpr = ButtonSprite::create("CLEAR ALL", "chatFont.fnt", "GJ_button_06.png", 0.40f);
+        clearSpr->setScale(0.66f);
+        auto clearBtn = CCMenuItemSpriteExtra::create(clearSpr, this, menu_selector(SyncatronPopup::onClearClick));
+        editMenu->addChild(clearBtn);
 
-        // 5. SUB NAVIGATION ROW: Time readout, Pan buttons, Import, Clear
-        auto subMenu = CCMenu::create();
-        subMenu->setPosition({w / 2.f, h - 228.f});
-        subMenu->setContentSize({440.f, 26.f});
-        subMenu->setLayout(RowLayout::create()->setGap(8.f));
+        editMenu->updateLayout();
+        m_mainLayer->addChild(editMenu);
+
+        // 5. PLAYBACK & PAN ROW (y = h - 222.f):
+        // [ Play/Pause ] [ << PAN ] Time Readout [ PAN >> ] [ - ZOOM ] [ + ZOOM ]
+        auto playMenu = CCMenu::create();
+        playMenu->setPosition({w / 2.f, h - 222.f});
+        playMenu->setContentSize({450.f, 26.f});
+        playMenu->setLayout(RowLayout::create()->setGap(6.f));
+
+        auto playDummy = CCSprite::create();
+        m_playBtn = CCMenuItemSpriteExtra::create(playDummy, this, menu_selector(SyncatronPopup::onPlayToggle));
+        updatePlayButton();
+        playMenu->addChild(m_playBtn);
 
         auto panLSpr = ButtonSprite::create("<< PAN", "chatFont.fnt", "GJ_button_04.png", 0.40f);
         panLSpr->setScale(0.65f);
         auto panLBtn = CCMenuItemSpriteExtra::create(panLSpr, this, menu_selector(SyncatronPopup::onPanStep));
         panLBtn->setTag(-1);
-        subMenu->addChild(panLBtn);
+        playMenu->addChild(panLBtn);
 
         m_timeLabel = CCLabelBMFont::create("00:00.00 / 00:00.00", "bigFont.fnt");
         m_timeLabel->setScale(0.33f);
         m_timeLabel->setColor(ccc3(255, 230, 120));
-        subMenu->addChild(m_timeLabel);
+        playMenu->addChild(m_timeLabel);
 
         auto panRSpr = ButtonSprite::create("PAN >>", "chatFont.fnt", "GJ_button_04.png", 0.40f);
         panRSpr->setScale(0.65f);
         auto panRBtn = CCMenuItemSpriteExtra::create(panRSpr, this, menu_selector(SyncatronPopup::onPanStep));
         panRBtn->setTag(1);
-        subMenu->addChild(panRBtn);
+        playMenu->addChild(panRBtn);
 
-        auto osuSpr = ButtonSprite::create(".OSU", "chatFont.fnt", "GJ_button_05.png", 0.40f);
-        osuSpr->setScale(0.65f);
-        auto osuBtn = CCMenuItemSpriteExtra::create(osuSpr, this, menu_selector(SyncatronPopup::onBrowseOsu));
-        subMenu->addChild(osuBtn);
+        auto zoomOutSpr = ButtonSprite::create("- ZOOM", "chatFont.fnt", "GJ_button_04.png", 0.40f);
+        zoomOutSpr->setScale(0.65f);
+        auto zoomOutBtn = CCMenuItemSpriteExtra::create(zoomOutSpr, this, menu_selector(SyncatronPopup::onZoomStep));
+        zoomOutBtn->setTag(-1);
+        playMenu->addChild(zoomOutBtn);
 
-        auto clearSpr = ButtonSprite::create("CLEAR ALL", "chatFont.fnt", "GJ_button_06.png", 0.40f);
-        clearSpr->setScale(0.65f);
-        auto clearBtn = CCMenuItemSpriteExtra::create(clearSpr, this, menu_selector(SyncatronPopup::onClearClick));
-        subMenu->addChild(clearBtn);
+        auto zoomInSpr = ButtonSprite::create("+ ZOOM", "chatFont.fnt", "GJ_button_04.png", 0.40f);
+        zoomInSpr->setScale(0.65f);
+        auto zoomInBtn = CCMenuItemSpriteExtra::create(zoomInSpr, this, menu_selector(SyncatronPopup::onZoomStep));
+        zoomInBtn->setTag(1);
+        playMenu->addChild(zoomInBtn);
 
-        subMenu->updateLayout();
-        m_mainLayer->addChild(subMenu);
+        playMenu->updateLayout();
+        m_mainLayer->addChild(playMenu);
 
-        // 6. BOTTOM ACTION ROW: [ APPLY TO EDITOR ] [ BUILD SYNC LAYOUT ]
+        // 6. ZOOM PRESETS ROW (y = h - 252.f):
+        // [ FULL ] [ 30s ] [ 10s ] [ 3s ] [ 1s ]
+        auto presetMenu = CCMenu::create();
+        presetMenu->setPosition({w / 2.f, h - 252.f});
+        presetMenu->setContentSize({450.f, 24.f});
+        presetMenu->setLayout(RowLayout::create()->setGap(8.f));
+
+        std::vector<std::pair<const char*, int>> presets = {
+            {"FULL SONG", 0},
+            {"30 SECONDS", 30},
+            {"10 SECONDS", 10},
+            {"3 SECONDS", 3},
+            {"1 SECOND", 1}
+        };
+        for (auto const& [name, sec] : presets) {
+            auto pSpr = ButtonSprite::create(name, "chatFont.fnt", (sec == 0) ? "GJ_button_05.png" : "GJ_button_04.png", 0.40f);
+            pSpr->setScale(0.65f);
+            auto pBtn = CCMenuItemSpriteExtra::create(pSpr, this, menu_selector(SyncatronPopup::onZoomPreset));
+            pBtn->setTag(sec);
+            presetMenu->addChild(pBtn);
+        }
+
+        presetMenu->updateLayout();
+        m_mainLayer->addChild(presetMenu);
+
+        // 7. BOTTOM ACTION ROW: [ APPLY TO EDITOR ] [ BUILD SYNC LAYOUT ] (y = 26.f)
         auto bottomMenu = CCMenu::create();
-        bottomMenu->setPosition({w / 2.f, 25.f});
-        bottomMenu->setContentSize({440.f, 38.f});
-        bottomMenu->setLayout(RowLayout::create()->setGap(12.f));
+        bottomMenu->setPosition({w / 2.f, 26.f});
+        bottomMenu->setContentSize({450.f, 38.f});
+        bottomMenu->setLayout(RowLayout::create()->setGap(14.f));
 
         auto applySpr = ButtonSprite::create("APPLY TO EDITOR", "goldFont.fnt", "GJ_button_02.png", 0.65f);
         applySpr->setScale(0.85f);
@@ -531,7 +610,7 @@ protected:
 public:
     static SyncatronPopup* create(std::function<void()> onBuild) {
         auto ret = new SyncatronPopup();
-        if (ret && ret->setup(470.f, 305.f, std::move(onBuild))) {
+        if (ret && ret->setup(480.f, 328.f, std::move(onBuild))) {
             ret->autorelease();
             return ret;
         }

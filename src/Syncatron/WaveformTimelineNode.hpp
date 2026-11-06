@@ -25,10 +25,20 @@ protected:
 
     std::vector<float> m_samples;
     CCDrawNode* m_drawNode = nullptr;
+    CCNode* m_rulerContainer = nullptr;
+    std::vector<CCLabelBMFont*> m_rulerLabels;
 
     std::function<void(float time, bool added)> m_onGuidelineChange;
 
 public:
+    const std::vector<float>& getSamples() const {
+        return m_samples;
+    }
+
+    float getSongLength() const {
+        return m_songLength;
+    }
+
     static WaveformTimelineNode* create(float width, float height) {
         auto ret = new WaveformTimelineNode();
         if (ret && ret->init(width, height)) {
@@ -48,6 +58,9 @@ public:
 
         m_drawNode = CCDrawNode::create();
         this->addChild(m_drawNode);
+
+        m_rulerContainer = CCNode::create();
+        this->addChild(m_rulerContainer, 10);
 
         redraw();
         return true;
@@ -285,26 +298,35 @@ public:
 
         float w = m_width;
         float h = m_height;
-        float waveH = h - 10.f;
+        float miniH = 10.f;
+        float rulerH = 14.f;
+        float waveH = h - miniH - rulerH;
+        float waveY = miniH;
+        float rulerY = h - rulerH;
+        float centerY = waveY + waveH / 2.f;
 
-        // 1. Background dark card
+        // 1. Audacity Waveform Background & Border
         m_drawNode->drawRect(
-            ccp(0, 0), ccp(w, h),
-            ccc4f(0.05f, 0.06f, 0.10f, 0.96f),
-            1.2f,
-            ccc4f(0.22f, 0.32f, 0.50f, 0.6f)
+            ccp(0, waveY), ccp(w, rulerY),
+            ccc4f(0.08f, 0.09f, 0.13f, 0.98f),
+            1.0f,
+            ccc4f(0.18f, 0.22f, 0.28f, 0.8f)
         );
 
-        // 2. Waveform center baseline
+        // 2. Audacity Centerline (0.0 line)
         m_drawNode->drawSegment(
-            ccp(0, 10.f + waveH / 2.f), ccp(w, 10.f + waveH / 2.f),
-            0.6f,
-            ccc4f(0.18f, 0.25f, 0.38f, 0.6f)
+            ccp(0, centerY), ccp(w, centerY),
+            0.8f,
+            ccc4f(0.25f, 0.32f, 0.42f, 0.7f)
         );
+
+        // Grid lines at +/- 0.5 amplitude
+        m_drawNode->drawSegment(ccp(0, waveY + waveH * 0.25f), ccp(w, waveY + waveH * 0.25f), 0.4f, ccc4f(0.13f, 0.16f, 0.22f, 0.5f));
+        m_drawNode->drawSegment(ccp(0, waveY + waveH * 0.75f), ccp(w, waveY + waveH * 0.75f), 0.4f, ccc4f(0.13f, 0.16f, 0.22f, 0.5f));
 
         float span = getCurrentSpan();
 
-        // 3. Audio Waveform bars
+        // 3. Audio Waveform bars (Two-tone Audacity Peak + RMS)
         if (!m_samples.empty() && m_songLength > 0.f) {
             float stepX = 1.5f;
             int numBars = static_cast<int>(w / stepX);
@@ -320,70 +342,160 @@ public:
                 sIdx = std::clamp(sIdx, 0, static_cast<int>(m_samples.size()) - 1);
 
                 float amp = m_samples[sIdx];
-                float barHeight = std::max(2.f, amp * (waveH - 12.f));
-                float yBot = 10.f + (waveH - barHeight) / 2.f;
-                float yTop = 10.f + (waveH + barHeight) / 2.f;
+                if (amp <= 0.005f) continue;
 
-                ccColor4F barCol = (timeAtBar <= m_playbackTime)
-                    ? ccc4f(0.2f, 0.88f, 0.98f, 0.92f)  // Played (electric cyan)
-                    : ccc4f(0.14f, 0.48f, 0.78f, 0.72f); // Unplayed (rich blue)
+                // Outer Peak
+                float peakH = std::max(1.5f, amp * (waveH - 4.f));
+                float yBot = centerY - peakH / 2.f;
+                float yTop = centerY + peakH / 2.f;
 
-                m_drawNode->drawSegment(ccp(barX, yBot), ccp(barX, yTop), 0.75f, barCol);
+                bool isPlayed = (timeAtBar <= m_playbackTime);
+                ccColor4F peakCol = isPlayed
+                    ? ccc4f(0.15f, 0.82f, 0.95f, 0.90f)
+                    : ccc4f(0.18f, 0.44f, 0.72f, 0.80f);
+
+                m_drawNode->drawSegment(ccp(barX, yBot), ccp(barX, yTop), 0.8f, peakCol);
+
+                // Inner RMS Core
+                float rmsH = std::pow(amp, 1.35f) * (waveH - 4.f) * 0.7f;
+                if (rmsH >= 1.5f) {
+                    float rmsBot = centerY - rmsH / 2.f;
+                    float rmsTop = centerY + rmsH / 2.f;
+                    ccColor4F rmsCol = isPlayed
+                        ? ccc4f(0.70f, 0.95f, 1.0f, 0.95f)
+                        : ccc4f(0.38f, 0.68f, 0.98f, 0.95f);
+                    m_drawNode->drawSegment(ccp(barX, rmsBot), ccp(barX, rmsTop), 0.7f, rmsCol);
+                }
             }
         } else {
-            // Placeholder grid bars if song not loaded
+            // Idle placeholder
             for (float x = 0; x < w; x += 14.f) {
-                m_drawNode->drawSegment(ccp(x, 10.f + waveH * 0.35f), ccp(x, 10.f + waveH * 0.65f), 0.5f, ccc4f(0.2f, 0.3f, 0.45f, 0.4f));
+                m_drawNode->drawSegment(ccp(x, centerY - 6.f), ccp(x, centerY + 6.f), 0.5f, ccc4f(0.18f, 0.22f, 0.32f, 0.4f));
             }
         }
 
-        // 4. Guideline vertical lines and diamond heads
+        // 4. Audacity Top Time Ruler
+        m_drawNode->drawRect(
+            ccp(0, rulerY), ccp(w, h),
+            ccc4f(0.12f, 0.14f, 0.18f, 1.0f),
+            0.6f,
+            ccc4f(0.24f, 0.28f, 0.36f, 0.9f)
+        );
+
+        float majorInterval = 10.0f;
+        float minorInterval = 2.0f;
+        if (span <= 1.5f) {
+            majorInterval = 0.25f;
+            minorInterval = 0.05f;
+        } else if (span <= 3.5f) {
+            majorInterval = 0.5f;
+            minorInterval = 0.1f;
+        } else if (span <= 8.0f) {
+            majorInterval = 1.0f;
+            minorInterval = 0.25f;
+        } else if (span <= 20.0f) {
+            majorInterval = 2.0f;
+            minorInterval = 0.5f;
+        } else if (span <= 60.0f) {
+            majorInterval = 5.0f;
+            minorInterval = 1.0f;
+        } else if (span <= 120.0f) {
+            majorInterval = 10.0f;
+            minorInterval = 2.0f;
+        } else {
+            majorInterval = 30.0f;
+            minorInterval = 5.0f;
+        }
+
+        for (auto* lbl : m_rulerLabels) {
+            lbl->setVisible(false);
+        }
+        size_t lblIdx = 0;
+
+        float firstMinor = std::floor(m_windowStart / minorInterval) * minorInterval;
+        for (float t = firstMinor; t <= m_windowEnd + minorInterval; t += minorInterval) {
+            if (t < m_windowStart || t > m_windowEnd) continue;
+            float tx = ((t - m_windowStart) / span) * w;
+
+            bool isMajor = std::abs(std::fmod(t + 0.0001f, majorInterval)) < 0.001f ||
+                           std::abs(std::fmod(t + 0.0001f, majorInterval) - majorInterval) < 0.001f;
+
+            if (isMajor) {
+                m_drawNode->drawSegment(ccp(tx, rulerY), ccp(tx, h), 0.9f, ccc4f(0.65f, 0.72f, 0.85f, 0.9f));
+
+                if (m_rulerContainer) {
+                    if (lblIdx >= m_rulerLabels.size()) {
+                        auto* lbl = CCLabelBMFont::create("", "chatFont.fnt");
+                        lbl->setScale(0.30f);
+                        lbl->setColor(ccc3(190, 205, 225));
+                        lbl->setAnchorPoint({0.0f, 1.0f});
+                        m_rulerContainer->addChild(lbl);
+                        m_rulerLabels.push_back(lbl);
+                    }
+                    auto* lbl = m_rulerLabels[lblIdx++];
+
+                    std::string timeStr;
+                    int m = static_cast<int>(t) / 60;
+                    float s = std::fmod(t, 60.0f);
+                    if (majorInterval < 1.0f) {
+                        timeStr = fmt::format("{:02}:{:04.1f}", m, s);
+                    } else {
+                        timeStr = fmt::format("{:02}:{:02.0f}", m, s);
+                    }
+                    lbl->setString(timeStr.c_str());
+                    lbl->setPosition({std::clamp(tx + 2.f, 2.f, w - 30.f), h - 1.f});
+                    lbl->setVisible(true);
+                }
+            } else {
+                m_drawNode->drawSegment(ccp(tx, rulerY), ccp(tx, rulerY + 5.f), 0.5f, ccc4f(0.40f, 0.45f, 0.55f, 0.6f));
+            }
+        }
+
+        // 5. Guideline vertical lines and diamond heads
         const auto& guides = Syncatron::getGuidelines();
         for (float gTime : guides) {
             if (gTime < m_windowStart || gTime > m_windowEnd) continue;
 
             float gx = ((gTime - m_windowStart) / span) * w;
 
-            // Orange guideline vertical line
             m_drawNode->drawSegment(
-                ccp(gx, 10.f), ccp(gx, h),
-                1.3f,
+                ccp(gx, waveY), ccp(gx, rulerY),
+                1.4f,
                 ccc4f(1.0f, 0.55f, 0.05f, 0.95f)
             );
 
-            // Diamond head at the top
             CCPoint diamond[] = {
-                ccp(gx, h - 1.f),
-                ccp(gx - 3.5f, h - 7.f),
-                ccp(gx, h - 11.f),
-                ccp(gx + 3.5f, h - 7.f)
+                ccp(gx, rulerY - 1.f),
+                ccp(gx - 3.5f, rulerY - 6.f),
+                ccp(gx, rulerY - 10.f),
+                ccp(gx + 3.5f, rulerY - 6.f)
             };
-            m_drawNode->drawPolygon(diamond, 4, ccc4f(1.0f, 0.75f, 0.15f, 1.0f), 0.f, ccc4f(0, 0, 0, 0));
+            m_drawNode->drawPolygon(diamond, 4, ccc4f(1.0f, 0.78f, 0.15f, 1.0f), 0.f, ccc4f(0, 0, 0, 0));
         }
 
-        // 5. Playhead white cursor
+        // 6. Playhead cursor (Audacity white playback line & pointer)
         if (m_playbackTime >= m_windowStart && m_playbackTime <= m_windowEnd) {
             float cx = ((m_playbackTime - m_windowStart) / span) * w;
             m_drawNode->drawSegment(
-                ccp(cx, 10.f), ccp(cx, h),
-                1.2f,
+                ccp(cx, waveY), ccp(cx, h),
+                1.3f,
                 ccc4f(1.0f, 1.0f, 1.0f, 1.0f)
             );
 
             CCPoint cursorHead[] = {
-                ccp(cx - 3.5f, h),
-                ccp(cx + 3.5f, h),
+                ccp(cx - 4.f, h),
+                ccp(cx + 4.f, h),
                 ccp(cx, h - 7.f)
             };
             m_drawNode->drawPolygon(cursorHead, 3, ccc4f(1.0f, 1.0f, 1.0f, 1.0f), 0.f, ccc4f(0, 0, 0, 0));
         }
 
-        // 6. Bottom Mini-Map Overview Track (0px to 9px)
+        // 7. Bottom Mini-Map Overview Track (0px to 9px)
         m_drawNode->drawRect(
             ccp(0, 0), ccp(w, 8.f),
-            ccc4f(0.04f, 0.05f, 0.08f, 1.0f),
+            ccc4f(0.05f, 0.06f, 0.09f, 1.0f),
             0.5f,
-            ccc4f(0.15f, 0.20f, 0.30f, 0.5f)
+            ccc4f(0.18f, 0.22f, 0.30f, 0.6f)
         );
 
         if (m_songLength > 0.f) {

@@ -56,6 +56,15 @@ namespace Syncatron {
     // Apply guideline string directly to current LevelEditorLayer & DrawGridLayer
     bool applyGuidelinesToEditor(float colorCode = 0.0f);
 
+    // Audacity Label Track Support (.txt)
+    bool importAudacityLabels(const std::filesystem::path& path);
+    bool exportAudacityLabels(const std::filesystem::path& path);
+    bool pickAndImportAudacityLabels();
+    bool pickAndExportAudacityLabels();
+
+    // Audacity-style Beat & Onset Finder (sensitivity: 0 = Low/Drops, 1 = Medium/Standard, 2 = High/Dense)
+    int autoDetectBeats(const std::vector<float>& samples, float songLength, int sensitivity = 1);
+
     // Clear guidelines from current level
     bool clearGuidelines();
 

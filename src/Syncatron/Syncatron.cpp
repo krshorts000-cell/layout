@@ -368,4 +368,203 @@ namespace Syncatron {
 #endif
         return false;
     }
+
+    bool importAudacityLabels(const std::filesystem::path& path) {
+        std::ifstream file(path);
+        if (!file.is_open()) return false;
+
+        std::string line;
+        int count = 0;
+        while (std::getline(file, line)) {
+            while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' ')) {
+                line.pop_back();
+            }
+            if (line.empty()) continue;
+
+            std::stringstream ss(line);
+            std::string startStr;
+            if (ss >> startStr) {
+                try {
+                    float startTime = std::stof(startStr);
+                    if (startTime >= 0.f) {
+                        startTime = std::round(startTime * 100.f) / 100.f;
+                        bool dup = false;
+                        for (float g : s_guidelines) {
+                            if (std::abs(g - startTime) < 0.02f) { dup = true; break; }
+                        }
+                        if (!dup) {
+                            s_guidelines.push_back(startTime);
+                            count++;
+                        }
+                    }
+                } catch (...) {}
+            }
+        }
+
+        if (count > 0) {
+            std::sort(s_guidelines.begin(), s_guidelines.end());
+            applyGuidelinesToEditor(0.0f);
+            applyBeatsToMacro();
+            geode::Notification::create(
+                fmt::format("Audacity: Imported {} labels!", count),
+                geode::NotificationIcon::Success
+            )->show();
+            return true;
+        } else {
+            geode::Notification::create("Audacity: No valid labels found in file!", geode::NotificationIcon::Warning)->show();
+            return false;
+        }
+    }
+
+    bool exportAudacityLabels(const std::filesystem::path& path) {
+        if (s_guidelines.empty()) {
+            geode::Notification::create("Audacity: No guidelines to export!", geode::NotificationIcon::Warning)->show();
+            return false;
+        }
+
+        std::ofstream file(path);
+        if (!file.is_open()) return false;
+
+        for (size_t i = 0; i < s_guidelines.size(); ++i) {
+            float t = s_guidelines[i];
+            file << fmt::format("{:.6f}\t{:.6f}\tBeat {}\n", t, t, i + 1);
+        }
+
+        geode::Notification::create(
+            fmt::format("Audacity: Exported {} labels to file!", s_guidelines.size()),
+            geode::NotificationIcon::Success
+        )->show();
+        return true;
+    }
+
+    bool pickAndImportAudacityLabels() {
+#ifdef GEODE_IS_WINDOWS
+        char szFile[MAX_PATH] = {0};
+        OPENFILENAMEA ofn;
+        ZeroMemory(&ofn, sizeof(ofn));
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = NULL;
+        ofn.lpstrFile = szFile;
+        ofn.nMaxFile = sizeof(szFile);
+        ofn.lpstrFilter = "Audacity Labels (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+        ofn.nFilterIndex = 1;
+        ofn.lpstrTitle = "Import Audacity Labels (.txt)";
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+        if (GetOpenFileNameA(&ofn)) {
+            return importAudacityLabels(std::filesystem::path(szFile));
+        }
+#endif
+        return false;
+    }
+
+    bool pickAndExportAudacityLabels() {
+#ifdef GEODE_IS_WINDOWS
+        char szFile[MAX_PATH] = "labels.txt";
+        OPENFILENAMEA ofn;
+        ZeroMemory(&ofn, sizeof(ofn));
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = NULL;
+        ofn.lpstrFile = szFile;
+        ofn.nMaxFile = sizeof(szFile);
+        ofn.lpstrFilter = "Audacity Labels (*.txt)\0*.txt\0All Files (*.*)\0*.*\0";
+        ofn.nFilterIndex = 1;
+        ofn.lpstrDefExt = "txt";
+        ofn.lpstrTitle = "Export Audacity Labels (.txt)";
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+
+        if (GetSaveFileNameA(&ofn)) {
+            return exportAudacityLabels(std::filesystem::path(szFile));
+        }
+#endif
+        return false;
+    }
+
+    int autoDetectBeats(const std::vector<float>& samples, float songLength, int sensitivity) {
+        if (samples.empty() || songLength <= 0.f) return 0;
+
+        float factor = 1.35f;
+        float minAmp = 0.28f;
+        float minInterval = 0.20f;
+
+        if (sensitivity == 0) {
+            factor = 1.65f;
+            minAmp = 0.45f;
+            minInterval = 0.32f;
+        } else if (sensitivity == 2) {
+            factor = 1.15f;
+            minAmp = 0.18f;
+            minInterval = 0.12f;
+        }
+
+        int N = static_cast<int>(samples.size());
+        float dt = songLength / static_cast<float>(N);
+        int halfWindow = std::max(2, static_cast<int>(0.35f / dt));
+        int refractorySamples = std::max(1, static_cast<int>(minInterval / dt));
+
+        std::vector<float> detectedTimes;
+        int lastBeatIdx = -refractorySamples;
+
+        for (int i = 0; i < N; ++i) {
+            float amp = samples[i];
+            if (amp < minAmp) continue;
+            if (i - lastBeatIdx < refractorySamples) continue;
+
+            float sum = 0.f;
+            int count = 0;
+            int wStart = std::max(0, i - halfWindow);
+            int wEnd = std::min(N - 1, i + halfWindow);
+            for (int k = wStart; k <= wEnd; ++k) {
+                sum += samples[k];
+                count++;
+            }
+            float localAvg = (count > 0) ? (sum / count) : 0.2f;
+
+            if (amp >= localAvg * factor) {
+                int bestIdx = i;
+                float bestVal = amp;
+                int pStart = std::max(0, i - 2);
+                int pEnd = std::min(N - 1, i + 2);
+                for (int p = pStart; p <= pEnd; ++p) {
+                    if (samples[p] > bestVal) {
+                        bestVal = samples[p];
+                        bestIdx = p;
+                    }
+                }
+
+                float beatTime = (static_cast<float>(bestIdx) / N) * songLength;
+                beatTime = std::round(beatTime * 100.f) / 100.f;
+
+                detectedTimes.push_back(beatTime);
+                lastBeatIdx = bestIdx;
+                i = bestIdx + refractorySamples - 1;
+            }
+        }
+
+        if (detectedTimes.empty()) {
+            geode::Notification::create("Beat Finder: No beats found with this sensitivity", geode::NotificationIcon::Warning)->show();
+            return 0;
+        }
+
+        for (float bt : detectedTimes) {
+            bool dup = false;
+            for (float g : s_guidelines) {
+                if (std::abs(g - bt) < 0.03f) { dup = true; break; }
+            }
+            if (!dup) {
+                s_guidelines.push_back(bt);
+            }
+        }
+
+        std::sort(s_guidelines.begin(), s_guidelines.end());
+        applyGuidelinesToEditor(0.0f);
+        applyBeatsToMacro();
+
+        geode::Notification::create(
+            fmt::format("Audacity Beat Finder: +{} beats detected!", detectedTimes.size()),
+            geode::NotificationIcon::Success
+        )->show();
+
+        return static_cast<int>(detectedTimes.size());
+    }
 }
