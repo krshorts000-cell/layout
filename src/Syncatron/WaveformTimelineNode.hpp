@@ -7,8 +7,8 @@ using namespace geode::prelude;
 
 class WaveformTimelineNode : public CCNode {
 protected:
-    float m_width = 420.f;
-    float m_height = 80.f;
+    float m_width = 430.f;
+    float m_height = 85.f;
     float m_songLength = 0.f;
     float m_playbackTime = 0.f;
     float m_windowStart = 0.f;
@@ -60,10 +60,9 @@ public:
     void setPlaybackTime(float timeSec) {
         m_playbackTime = std::clamp(timeSec, 0.f, m_songLength);
         if (m_isZoomed) {
-            // Keep playback cursor in view if zoomed
-            if (m_playbackTime > m_windowEnd - 2.f || m_playbackTime < m_windowStart) {
-                float span = m_windowEnd - m_windowStart;
-                m_windowStart = std::clamp(m_playbackTime - 2.f, 0.f, std::max(0.f, m_songLength - span));
+            float span = m_windowEnd - m_windowStart;
+            if (m_playbackTime > m_windowEnd - 0.5f || m_playbackTime < m_windowStart) {
+                m_windowStart = std::clamp(m_playbackTime - span / 3.f, 0.f, std::max(0.f, m_songLength - span));
                 m_windowEnd = m_windowStart + span;
             }
         }
@@ -78,16 +77,59 @@ public:
         return m_snapToPeak;
     }
 
-    void setZoomMode(bool zoomed, float windowSeconds = 15.f) {
-        m_isZoomed = zoomed;
-        if (m_isZoomed) {
-            float span = std::min(m_songLength, windowSeconds);
-            m_windowStart = std::clamp(m_playbackTime - span / 3.f, 0.f, std::max(0.f, m_songLength - span));
-            m_windowEnd = m_windowStart + span;
-        } else {
-            m_windowStart = 0.f;
-            m_windowEnd = m_songLength;
+    float getCurrentSpan() const {
+        return std::max(0.1f, m_windowEnd - m_windowStart);
+    }
+
+    float getCurrentCenterTime() const {
+        return (m_windowStart + m_windowEnd) / 2.f;
+    }
+
+    float getTimeAtX(float localX) const {
+        float ratio = std::clamp(localX / m_width, 0.f, 1.f);
+        return m_windowStart + ratio * getCurrentSpan();
+    }
+
+    void zoomAt(float centerTime, float zoomFactor) {
+        if (m_songLength <= 0.f) return;
+
+        float currentSpan = getCurrentSpan();
+        float newSpan = std::clamp(currentSpan * zoomFactor, 0.5f, m_songLength);
+
+        float ratio = (centerTime - m_windowStart) / (currentSpan > 0.01f ? currentSpan : 1.f);
+        ratio = std::clamp(ratio, 0.f, 1.f);
+
+        float newStart = centerTime - ratio * newSpan;
+        if (newStart < 0.f) newStart = 0.f;
+        float newEnd = newStart + newSpan;
+        if (newEnd > m_songLength) {
+            newEnd = m_songLength;
+            newStart = std::max(0.f, newEnd - newSpan);
         }
+
+        m_windowStart = newStart;
+        m_windowEnd = newEnd;
+        m_isZoomed = (newSpan < m_songLength - 0.5f);
+        redraw();
+    }
+
+    void setZoomSpan(float targetSpan) {
+        if (m_songLength <= 0.f) return;
+
+        targetSpan = std::clamp(targetSpan, 0.5f, m_songLength);
+        float center = getCurrentCenterTime();
+
+        float newStart = center - targetSpan / 2.f;
+        if (newStart < 0.f) newStart = 0.f;
+        float newEnd = newStart + targetSpan;
+        if (newEnd > m_songLength) {
+            newEnd = m_songLength;
+            newStart = std::max(0.f, newEnd - targetSpan);
+        }
+
+        m_windowStart = newStart;
+        m_windowEnd = newEnd;
+        m_isZoomed = (targetSpan < m_songLength - 0.5f);
         redraw();
     }
 
@@ -96,8 +138,8 @@ public:
     }
 
     void pan(float deltaSeconds) {
-        if (!m_isZoomed) return;
-        float span = m_windowEnd - m_windowStart;
+        if (m_songLength <= 0.f) return;
+        float span = getCurrentSpan();
         m_windowStart = std::clamp(m_windowStart + deltaSeconds, 0.f, std::max(0.f, m_songLength - span));
         m_windowEnd = m_windowStart + span;
         redraw();
@@ -115,8 +157,11 @@ public:
         if (m_samples.empty() || m_songLength <= 0.f) return t;
 
         int centerIdx = static_cast<int>(t / m_songLength * m_samples.size());
-        int radius = static_cast<int>(0.06f / m_songLength * m_samples.size());
-        radius = std::clamp(radius, 1, 15);
+        float span = getCurrentSpan();
+        float searchWindow = std::clamp(span * 0.04f, 0.02f, 0.08f);
+
+        int radius = static_cast<int>(searchWindow / m_songLength * m_samples.size());
+        radius = std::clamp(radius, 1, 25);
 
         int bestIdx = centerIdx;
         float maxAmp = -1.f;
@@ -129,8 +174,7 @@ public:
             }
         }
 
-        // Only snap if significant amplitude
-        if (maxAmp > 0.08f) {
+        if (maxAmp > 0.06f) {
             return static_cast<float>(bestIdx) / m_samples.size() * m_songLength;
         }
         return t;
@@ -142,9 +186,18 @@ public:
             return false;
         }
 
-        float span = m_windowEnd - m_windowStart;
-        if (span <= 0.01f) span = 1.f;
+        // If clicked on bottom 8px mini-map bar: jump viewport to that position
+        if (localPoint.y < 9.f && m_songLength > 0.f) {
+            float jumpCenter = (localPoint.x / m_width) * m_songLength;
+            float span = getCurrentSpan();
+            float newStart = std::clamp(jumpCenter - span / 2.f, 0.f, std::max(0.f, m_songLength - span));
+            m_windowStart = newStart;
+            m_windowEnd = newStart + span;
+            redraw();
+            return true;
+        }
 
+        float span = getCurrentSpan();
         float ratio = localPoint.x / m_width;
         float clickedTime = m_windowStart + ratio * span;
 
@@ -153,8 +206,7 @@ public:
         }
         clickedTime = std::round(clickedTime * 100.f) / 100.f;
 
-        // Check if guideline exists within tolerance
-        float tolTime = std::max(0.04f, (5.f / m_width) * span);
+        float tolTime = std::max(0.03f, (6.f / m_width) * span);
         auto& guides = Syncatron::getGuidelines();
 
         int foundIdx = -1;
@@ -189,24 +241,24 @@ public:
 
         float w = m_width;
         float h = m_height;
+        float waveH = h - 10.f; // reserve bottom 10px for mini-map overview
 
         // 1. Background dark card
         m_drawNode->drawRect(
             ccp(0, 0), ccp(w, h),
-            ccc4f(0.06f, 0.07f, 0.11f, 0.95f),
+            ccc4f(0.05f, 0.06f, 0.10f, 0.96f),
             1.2f,
-            ccc4f(0.25f, 0.35f, 0.55f, 0.6f)
+            ccc4f(0.22f, 0.32f, 0.50f, 0.6f)
         );
 
-        // 2. Center baseline
+        // 2. Waveform center baseline
         m_drawNode->drawSegment(
-            ccp(0, h / 2.f), ccp(w, h / 2.f),
+            ccp(0, 10.f + waveH / 2.f), ccp(w, 10.f + waveH / 2.f),
             0.6f,
             ccc4f(0.18f, 0.25f, 0.38f, 0.6f)
         );
 
-        float span = m_windowEnd - m_windowStart;
-        if (span <= 0.01f) span = 1.f;
+        float span = getCurrentSpan();
 
         // 3. Audio Waveform bars
         if (!m_samples.empty() && m_songLength > 0.f) {
@@ -224,20 +276,20 @@ public:
                 sIdx = std::clamp(sIdx, 0, static_cast<int>(m_samples.size()) - 1);
 
                 float amp = m_samples[sIdx];
-                float barHeight = std::max(2.f, amp * (h - 14.f));
-                float yBot = (h - barHeight) / 2.f;
-                float yTop = (h + barHeight) / 2.f;
+                float barHeight = std::max(2.f, amp * (waveH - 12.f));
+                float yBot = 10.f + (waveH - barHeight) / 2.f;
+                float yTop = 10.f + (waveH + barHeight) / 2.f;
 
                 ccColor4F barCol = (timeAtBar <= m_playbackTime)
-                    ? ccc4f(0.2f, 0.85f, 0.95f, 0.9f)   // Played (bright cyan)
-                    : ccc4f(0.15f, 0.50f, 0.80f, 0.7f); // Unplayed (deep blue)
+                    ? ccc4f(0.2f, 0.88f, 0.98f, 0.92f)  // Played (electric cyan)
+                    : ccc4f(0.14f, 0.48f, 0.78f, 0.72f); // Unplayed (rich blue)
 
                 m_drawNode->drawSegment(ccp(barX, yBot), ccp(barX, yTop), 0.75f, barCol);
             }
         } else {
             // Placeholder grid bars if song not loaded
             for (float x = 0; x < w; x += 14.f) {
-                m_drawNode->drawSegment(ccp(x, h * 0.35f), ccp(x, h * 0.65f), 0.5f, ccc4f(0.2f, 0.3f, 0.45f, 0.4f));
+                m_drawNode->drawSegment(ccp(x, 10.f + waveH * 0.35f), ccp(x, 10.f + waveH * 0.65f), 0.5f, ccc4f(0.2f, 0.3f, 0.45f, 0.4f));
             }
         }
 
@@ -250,7 +302,7 @@ public:
 
             // Orange guideline vertical line
             m_drawNode->drawSegment(
-                ccp(gx, 0), ccp(gx, h),
+                ccp(gx, 10.f), ccp(gx, h),
                 1.3f,
                 ccc4f(1.0f, 0.55f, 0.05f, 0.95f)
             );
@@ -269,7 +321,7 @@ public:
         if (m_playbackTime >= m_windowStart && m_playbackTime <= m_windowEnd) {
             float cx = ((m_playbackTime - m_windowStart) / span) * w;
             m_drawNode->drawSegment(
-                ccp(cx, 0), ccp(cx, h),
+                ccp(cx, 10.f), ccp(cx, h),
                 1.2f,
                 ccc4f(1.0f, 1.0f, 1.0f, 1.0f)
             );
@@ -280,6 +332,34 @@ public:
                 ccp(cx, h - 7.f)
             };
             m_drawNode->drawPolygon(cursorHead, 3, ccc4f(1.0f, 1.0f, 1.0f, 1.0f), 0.f, ccc4f(0, 0, 0, 0));
+        }
+
+        // 6. Bottom Mini-Map Overview Track (0px to 9px)
+        m_drawNode->drawRect(
+            ccp(0, 0), ccp(w, 8.f),
+            ccc4f(0.04f, 0.05f, 0.08f, 1.0f),
+            0.5f,
+            ccc4f(0.15f, 0.20f, 0.30f, 0.5f)
+        );
+
+        if (m_songLength > 0.f) {
+            // Draw mini guideline dots on overview
+            for (float gTime : guides) {
+                float minix = (gTime / m_songLength) * w;
+                m_drawNode->drawSegment(ccp(minix, 1.f), ccp(minix, 7.f), 0.8f, ccc4f(1.0f, 0.6f, 0.1f, 0.8f));
+            }
+
+            // Highlighted viewport indicator box
+            float vx1 = (m_windowStart / m_songLength) * w;
+            float vx2 = (m_windowEnd / m_songLength) * w;
+            float vWidth = std::max(4.f, vx2 - vx1);
+
+            m_drawNode->drawRect(
+                ccp(vx1, 0.5f), ccp(vx1 + vWidth, 7.5f),
+                ccc4f(0.2f, 0.75f, 1.0f, 0.45f),
+                0.8f,
+                ccc4f(1.0f, 0.85f, 0.3f, 0.95f)
+            );
         }
     }
 };
