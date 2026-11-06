@@ -24,6 +24,11 @@ namespace Syncatron {
     bool hasActiveBeats();
     void clearActiveBeats();
 
+    // Direct guidelines list (for interactive waveform placement & sync)
+    std::vector<float>& getGuidelines();
+    void setGuidelines(const std::vector<float>& guides);
+    void loadGuidelinesFromLevel();
+
     // Current map metadata
     MapMetadata& getMetadata();
 

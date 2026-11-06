@@ -15,6 +15,7 @@
 namespace Syncatron {
     static std::vector<BeatInfo> s_activeBeats;
     static std::vector<float> s_rawTimestamps;
+    static std::vector<float> s_guidelines;
     static size_t s_beatCursor = 0;
     static float s_offsetSeconds = 0.0f;
     static MapMetadata s_metadata;
@@ -25,14 +26,66 @@ namespace Syncatron {
     }
 
     bool hasActiveBeats() {
-        return !s_activeBeats.empty();
+        return !s_activeBeats.empty() || !s_guidelines.empty();
     }
 
     void clearActiveBeats() {
         s_activeBeats.clear();
         s_rawTimestamps.clear();
+        s_guidelines.clear();
         s_beatCursor = 0;
         s_metadata = MapMetadata{};
+    }
+
+    std::vector<float>& getGuidelines() {
+        return s_guidelines;
+    }
+
+    void setGuidelines(const std::vector<float>& guides) {
+        s_guidelines = guides;
+        std::sort(s_guidelines.begin(), s_guidelines.end());
+
+        s_activeBeats.clear();
+        for (float t : s_guidelines) {
+            BeatInfo b;
+            b.timeSeconds = t;
+            b.frame240 = static_cast<int>(std::round(t * 240.0f));
+            s_activeBeats.push_back(b);
+        }
+        applyBeatsToMacro();
+    }
+
+    void loadGuidelinesFromLevel() {
+        auto editor = LevelEditorLayer::get();
+        if (!editor || !editor->m_levelSettings) return;
+
+        std::string raw = editor->m_levelSettings->m_guidelineString;
+        if (raw.empty()) return;
+
+        s_guidelines.clear();
+        std::stringstream ss(raw);
+        std::string item;
+        bool isTime = true;
+        while (std::getline(ss, item, '~')) {
+            if (item.empty()) continue;
+            if (isTime) {
+                try {
+                    float t = std::stof(item);
+                    if (t >= 0.f) s_guidelines.push_back(t);
+                } catch (...) {}
+            }
+            isTime = !isTime;
+        }
+
+        std::sort(s_guidelines.begin(), s_guidelines.end());
+        s_activeBeats.clear();
+        for (float t : s_guidelines) {
+            BeatInfo b;
+            b.timeSeconds = t;
+            b.frame240 = static_cast<int>(std::round(t * 240.0f));
+            s_activeBeats.push_back(b);
+        }
+        applyBeatsToMacro();
     }
 
     MapMetadata& getMetadata() {
@@ -45,6 +98,7 @@ namespace Syncatron {
 
     static void recalculateBeats() {
         s_activeBeats.clear();
+        s_guidelines.clear();
         s_beatCursor = 0;
 
         if (s_rawTimestamps.empty()) return;
@@ -60,6 +114,7 @@ namespace Syncatron {
             b.timeSeconds = t;
             b.frame240 = static_cast<int>(std::round(t * 240.0f));
             s_activeBeats.push_back(b);
+            s_guidelines.push_back(t);
         }
 
         s_metadata.totalNotes = static_cast<int>(s_activeBeats.size());
@@ -84,21 +139,38 @@ namespace Syncatron {
     }
 
     bool checkBeat(float elapsedTime) {
-        if (s_activeBeats.empty()) return false;
-        if (s_beatCursor >= s_activeBeats.size()) return false;
+        // Prefer s_activeBeats, fallback to s_guidelines
+        if (!s_activeBeats.empty()) {
+            if (s_beatCursor >= s_activeBeats.size()) return false;
+            if (elapsedTime >= s_activeBeats[s_beatCursor].timeSeconds) {
+                s_beatCursor++;
+                return true;
+            }
+            return false;
+        }
 
-        if (elapsedTime >= s_activeBeats[s_beatCursor].timeSeconds) {
-            s_beatCursor++;
-            return true;
+        if (!s_guidelines.empty()) {
+            if (s_beatCursor >= s_guidelines.size()) return false;
+            if (elapsedTime >= s_guidelines[s_beatCursor]) {
+                s_beatCursor++;
+                return true;
+            }
         }
         return false;
     }
 
     std::string generateGuidelineString(float colorCode) {
-        if (s_activeBeats.empty()) return "";
+        const auto& list = !s_guidelines.empty() ? s_guidelines : [&]() {
+            static std::vector<float> times;
+            times.clear();
+            for (auto const& b : s_activeBeats) times.push_back(b.timeSeconds);
+            return times;
+        }();
+
+        if (list.empty()) return "";
         std::string res;
-        for (const auto& b : s_activeBeats) {
-            res += fmt::format("{:.2f}~{:.1f}~", b.timeSeconds, colorCode);
+        for (float t : list) {
+            res += fmt::format("{:.2f}~{:.1f}~", t, colorCode);
         }
         return res;
     }
@@ -122,6 +194,10 @@ namespace Syncatron {
         auto editor = LevelEditorLayer::get();
         if (!editor || !editor->m_levelSettings) return false;
 
+        s_guidelines.clear();
+        s_activeBeats.clear();
+        s_beatCursor = 0;
+
         editor->m_levelSettings->m_guidelineString = "";
         if (auto grid = editor->getChildByType<DrawGridLayer>(0)) {
             grid->loadTimeMarkers("");
@@ -131,17 +207,25 @@ namespace Syncatron {
     }
 
     bool applyBeatsToMacro() {
-        if (s_activeBeats.empty()) return false;
+        const auto& times = !s_guidelines.empty() ? s_guidelines : [&]() {
+            static std::vector<float> tms;
+            tms.clear();
+            for (auto const& b : s_activeBeats) tms.push_back(b.timeSeconds);
+            return tms;
+        }();
+
+        if (times.empty()) return false;
 
         auto& g = Global::get();
         g.macro.inputs.clear();
         g.macro.framerate = 240.f;
 
-        for (size_t i = 0; i < s_activeBeats.size(); ++i) {
-            int downFrame = s_activeBeats[i].frame240;
+        for (size_t i = 0; i < times.size(); ++i) {
+            int downFrame = static_cast<int>(std::round(times[i] * 240.0f));
             int holdFrames = 15;
-            if (i + 1 < s_activeBeats.size()) {
-                int gap = s_activeBeats[i + 1].frame240 - downFrame;
+            if (i + 1 < times.size()) {
+                int nextFrame = static_cast<int>(std::round(times[i + 1] * 240.0f));
+                int gap = nextFrame - downFrame;
                 if (gap > 4) {
                     holdFrames = std::clamp(gap / 2, 8, 30);
                 }
