@@ -84,19 +84,27 @@ if not geode_file:
 
 print(f"Found geode package: {geode_file}")
 
+geode_name = os.path.basename(geode_file)
+mod_stem = os.path.splitext(geode_name)[0]
+
+# Also save standalone release package to root folder for distribution
+shutil.copy2(geode_file, f'D:/layout/{geode_name}')
+shutil.copy2(geode_file, 'D:/layout/Syncatron.geode')
+print(f"Saved distribution copy to D:/layout/{geode_name} and D:/layout/Syncatron.geode")
+
 targets = [
     r'C:\Users\HI\Desktop\depot_322171\geode\mods',
     r'D:\SteamLibrary\steamapps\common\Geometry Dash\geode\mods'
 ]
 
 unzipped_targets = [
-    r'C:\Users\HI\Desktop\depot_322171\geode\unzipped\profdragon.layoutgenerator',
-    r'D:\SteamLibrary\steamapps\common\Geometry Dash\geode\unzipped\profdragon.layoutgenerator'
+    rf'C:\Users\HI\Desktop\depot_322171\geode\unzipped\{mod_stem}',
+    rf'D:\SteamLibrary\steamapps\common\Geometry Dash\geode\unzipped\{mod_stem}'
 ]
 
 for t in targets:
     if os.path.exists(t):
-        dest = os.path.join(t, 'profdragon.layoutgenerator.geode')
+        dest = os.path.join(t, geode_name)
         try:
             shutil.copy2(geode_file, dest)
             print(f"Copied to {dest}")

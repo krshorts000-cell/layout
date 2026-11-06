@@ -582,21 +582,21 @@ protected:
         presetMenu->updateLayout();
         m_mainLayer->addChild(presetMenu);
 
-        // 7. BOTTOM ACTION ROW: [ APPLY TO EDITOR ] [ BUILD SYNC LAYOUT ] (y = 26.f)
+        // 7. BOTTOM ACTION ROW: [ APPLY TO EDITOR ] [ CLOSE ] (y = 26.f)
         auto bottomMenu = CCMenu::create();
         bottomMenu->setPosition({w / 2.f, 26.f});
         bottomMenu->setContentSize({450.f, 38.f});
         bottomMenu->setLayout(RowLayout::create()->setGap(14.f));
 
-        auto applySpr = ButtonSprite::create("APPLY TO EDITOR", "goldFont.fnt", "GJ_button_02.png", 0.65f);
-        applySpr->setScale(0.85f);
+        auto applySpr = ButtonSprite::create("APPLY TO EDITOR", "goldFont.fnt", "GJ_button_01.png", 0.65f);
+        applySpr->setScale(0.88f);
         auto applyBtn = CCMenuItemSpriteExtra::create(applySpr, this, menu_selector(SyncatronPopup::onApplyClick));
         bottomMenu->addChild(applyBtn);
 
-        auto buildSpr = ButtonSprite::create("BUILD SYNC LAYOUT", "goldFont.fnt", "GJ_button_01.png", 0.65f);
-        buildSpr->setScale(0.85f);
-        auto buildBtn = CCMenuItemSpriteExtra::create(buildSpr, this, menu_selector(SyncatronPopup::onBuildClick));
-        bottomMenu->addChild(buildBtn);
+        auto closeSpr = ButtonSprite::create("CLOSE", "goldFont.fnt", "GJ_button_06.png", 0.65f);
+        closeSpr->setScale(0.88f);
+        auto closeBtn = CCMenuItemSpriteExtra::create(closeSpr, this, menu_selector(SyncatronPopup::onClose));
+        bottomMenu->addChild(closeBtn);
 
         bottomMenu->updateLayout();
         m_mainLayer->addChild(bottomMenu);

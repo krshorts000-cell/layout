@@ -61,34 +61,7 @@ class $modify(MyEditorUI, EditorUI)
         if (!EditorUI::init(editorLayer))
             return false;
 
-        // Build button: native green circular badge with hammer icon
-        auto buildSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_hammerIcon_001.png", 0.9f, CircleBaseColor::Green);
-        buildSprite->setScale(0.72f);
-        auto buildButton = CCMenuItemSpriteExtra::create(
-            buildSprite,
-            getBuilder(),
-            menu_selector(LayoutGeneratorLayer::onBuildButton));
-        buildButton->setID("build-button"_spr);
-
-        // AI button: native magenta circular badge with magic wand icon
-        auto aiSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_sMagicIcon_001.png", 1.0f, CircleBaseColor::Pink);
-        aiSprite->setScale(0.72f);
-        auto aiButton = CCMenuItemSpriteExtra::create(
-            aiSprite,
-            this,
-            menu_selector(MyEditorUI::onOpenAIPopup));
-        aiButton->setID("ai-button"_spr);
-
-        // Bot button: native cyan circular badge with play icon
-        auto botSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_playEditorBtn_001.png", 0.85f, CircleBaseColor::Cyan);
-        botSprite->setScale(0.72f);
-        auto botButton = CCMenuItemSpriteExtra::create(
-            botSprite,
-            this,
-            menu_selector(MyEditorUI::onToggleBot));
-        botButton->setID("bot-button"_spr);
-
-        // Sync-a-tron button: native orange circular badge with music icon
+        // Sync-a-tron button: native purple circular badge with music icon
         auto syncSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_musicOnBtn_001.png", 0.9f, CircleBaseColor::DarkPurple);
         syncSprite->setScale(0.72f);
         auto syncButton = CCMenuItemSpriteExtra::create(
@@ -97,28 +70,10 @@ class $modify(MyEditorUI, EditorUI)
             menu_selector(MyEditorUI::onOpenSyncatronPopup));
         syncButton->setID("syncatron-button"_spr);
 
-        // Settings button: native dark aqua circular badge with gear icon
-        // @geode-ignore(unknown-resource)
-        auto settingsSprite = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 0.85f, CircleBaseColor::DarkAqua);
-        settingsSprite->setScale(0.72f);
-        auto settingsButton = CCMenuItemSpriteExtra::create(
-            settingsSprite,
-            getBuilder(),
-            menu_selector(LayoutGeneratorLayer::onSettingsButton));
-        settingsButton->setID("settings-button"_spr);
-
         auto menu = getChildByID("playback-menu");
         if (menu) {
-            menu->addChild(buildButton);
-            menu->addChild(aiButton);
             menu->addChild(syncButton);
-            menu->addChild(botButton);
-            menu->addChild(settingsButton);
-            m_uiItems->addObject(buildButton);
-            m_uiItems->addObject(aiButton);
             m_uiItems->addObject(syncButton);
-            m_uiItems->addObject(botButton);
-            m_uiItems->addObject(settingsButton);
             menu->updateLayout();
         }
 
