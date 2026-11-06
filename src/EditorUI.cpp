@@ -7,6 +7,7 @@
 #include "LevelEditorLayer.cpp"
 #include "Macro/Macro.hpp"
 #include "AILayoutPopup.hpp"
+#include "Syncatron/SyncatronPopup.hpp"
 
 using namespace geode::prelude;
 
@@ -87,6 +88,15 @@ class $modify(MyEditorUI, EditorUI)
             menu_selector(MyEditorUI::onToggleBot));
         botButton->setID("bot-button"_spr);
 
+        // Sync-a-tron button: native orange circular badge with music icon
+        auto syncSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_musicOnBtn_001.png", 0.9f, CircleBaseColor::Orange);
+        syncSprite->setScale(0.72f);
+        auto syncButton = CCMenuItemSpriteExtra::create(
+            syncSprite,
+            this,
+            menu_selector(MyEditorUI::onOpenSyncatronPopup));
+        syncButton->setID("syncatron-button"_spr);
+
         // Settings button: native dark aqua circular badge with gear icon
         // @geode-ignore(unknown-resource)
         auto settingsSprite = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 0.85f, CircleBaseColor::DarkAqua);
@@ -101,16 +111,29 @@ class $modify(MyEditorUI, EditorUI)
         if (menu) {
             menu->addChild(buildButton);
             menu->addChild(aiButton);
+            menu->addChild(syncButton);
             menu->addChild(botButton);
             menu->addChild(settingsButton);
             m_uiItems->addObject(buildButton);
             m_uiItems->addObject(aiButton);
+            m_uiItems->addObject(syncButton);
             m_uiItems->addObject(botButton);
             m_uiItems->addObject(settingsButton);
             menu->updateLayout();
         }
 
         return true;
+    }
+
+    void onOpenSyncatronPopup(CCObject*) {
+        auto popup = SyncatronPopup::create([this]() {
+            if (auto builder = getBuilder()) {
+                builder->onBuildButton(nullptr);
+            }
+        });
+        if (popup) {
+            popup->show();
+        }
     }
 
     void onOpenAIPopup(CCObject*) {

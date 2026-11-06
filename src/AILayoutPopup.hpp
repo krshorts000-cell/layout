@@ -3,7 +3,7 @@
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/BasedButtonSprite.hpp>
 #include <Geode/ui/Layout.hpp>
-#include "Syncatron/Syncatron.hpp"
+#include "Syncatron/SyncatronPopup.hpp"
 
 using namespace geode::prelude;
 
@@ -243,11 +243,10 @@ protected:
     }
 
     void onSyncatronClick(CCObject*) {
-        if (Syncatron::pickAndLoadOsuFile()) {
-            this->onClose(nullptr);
-            if (m_onLiveBuild) {
-                m_onLiveBuild();
-            }
+        this->onClose(nullptr);
+        auto popup = SyncatronPopup::create(m_onLiveBuild);
+        if (popup) {
+            popup->show();
         }
     }
 
