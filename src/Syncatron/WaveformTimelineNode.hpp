@@ -35,10 +35,6 @@ public:
         return m_samples;
     }
 
-    float getSongLength() const {
-        return m_songLength;
-    }
-
     static WaveformTimelineNode* create(float width, float height) {
         auto ret = new WaveformTimelineNode();
         if (ret && ret->init(width, height)) {
