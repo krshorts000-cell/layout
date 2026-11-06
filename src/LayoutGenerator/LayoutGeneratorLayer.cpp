@@ -8,6 +8,7 @@
 #include "../PlayerObject.cpp"
 #include "../Settings/ObjectSettings.hpp"
 #include "../Macro/Macro.hpp"
+#include "../Syncatron/Syncatron.hpp"
 
 LayoutGeneratorLayer *LayoutGeneratorLayer::create()
 {
@@ -68,6 +69,7 @@ void LayoutGeneratorLayer::reset()
     m_shouldTapTimer = 0;
     m_tapBalance = 3.f; // don't make the player jump straight away
     m_usingAIMacro = false;
+    Syncatron::resetBeatCursor();
 
     // Reset Live Route Builder variables
     m_lastLiveGroundX = -9999.f;
@@ -259,7 +261,12 @@ void LayoutGeneratorLayer::update(float dt)
 
     bool onBeat = false;
     bool onHalfBeat = false;
-    if ((int)(m_elapsedTime / spb * 2.f) > m_halfBeatCount)
+    if (Syncatron::hasActiveBeats())
+    {
+        onBeat = Syncatron::checkBeat(m_elapsedTime);
+        onHalfBeat = onBeat;
+    }
+    else if ((int)(m_elapsedTime / spb * 2.f) > m_halfBeatCount)
     {
         onBeat = m_halfBeatCount % 2 == 0;
         onHalfBeat = true;

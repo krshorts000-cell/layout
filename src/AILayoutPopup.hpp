@@ -3,6 +3,7 @@
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/BasedButtonSprite.hpp>
 #include <Geode/ui/Layout.hpp>
+#include "Syncatron/Syncatron.hpp"
 
 using namespace geode::prelude;
 
@@ -239,6 +240,15 @@ protected:
 
     void onSettingsClick(CCObject*) {
         geode::openSettingsPopup(Mod::get(), false);
+    }
+
+    void onSyncatronClick(CCObject*) {
+        if (Syncatron::pickAndLoadOsuFile()) {
+            this->onClose(nullptr);
+            if (m_onLiveBuild) {
+                m_onLiveBuild();
+            }
+        }
     }
 
     bool setup(float width, float height, std::function<void()> onGenerate, std::function<void()> onLiveBuild) {
@@ -497,6 +507,11 @@ protected:
         liveSpr->setScale(0.85f);
         auto liveBtn = CCMenuItemSpriteExtra::create(liveSpr, this, menu_selector(AILayoutPopup::onLiveBuildClick));
         bottomMenu->addChild(liveBtn);
+
+        auto syncSpr = ButtonSprite::create("SYNC (.OSU)", "goldFont.fnt", "GJ_button_04.png", 0.7f);
+        syncSpr->setScale(0.85f);
+        auto syncBtn = CCMenuItemSpriteExtra::create(syncSpr, this, menu_selector(AILayoutPopup::onSyncatronClick));
+        bottomMenu->addChild(syncBtn);
 
         // @geode-ignore(unknown-resource)
         auto gearSpr = CircleButtonSprite::createWithSpriteFrameName("geode.loader/settings.png", 0.85f, CircleBaseColor::DarkAqua);

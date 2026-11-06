@@ -1,0 +1,57 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.mp3
+AudioLeadIn: 0
+PreviewTime: -1
+Countdown: 0
+SampleSet: Normal
+StackLeniency: 0.7
+Mode: 0
+LetterboxInBreaks: 0
+WidescreenStoryboard: 0
+
+[Editor]
+DistanceSpacing: 0.8
+BeatDivisor: 4
+GridSize: 32
+TimelineZoom: 1
+
+[Metadata]
+Title:Sync-a-tron Test
+TitleUnicode:Sync-a-tron Test
+Artist:HawKyre
+ArtistUnicode:HawKyre
+Creator:Sync-a-tron
+Version:Normal
+Source:
+Tags:
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:4
+OverallDifficulty:8
+ApproachRate:9
+SliderMultiplier:1.4
+SliderTickRate:1
+
+[TimingPoints]
+0,468.75,4,2,1,60,1,0
+
+[HitObjects]
+256,192,500,1,0,0:0:0:0:
+256,192,968,1,0,0:0:0:0:
+256,192,1437,1,0,0:0:0:0:
+256,192,1906,1,0,0:0:0:0:
+256,192,2375,1,0,0:0:0:0:
+256,192,2843,1,0,0:0:0:0:
+256,192,3312,1,0,0:0:0:0:
+256,192,3781,1,0,0:0:0:0:
+256,192,4250,1,0,0:0:0:0:
+256,192,4718,1,0,0:0:0:0:
+256,192,5187,1,0,0:0:0:0:
+256,192,5656,1,0,0:0:0:0:
+256,192,6125,1,0,0:0:0:0:
+256,192,6593,1,0,0:0:0:0:
+256,192,7062,1,0,0:0:0:0:
+256,192,7531,1,0,0:0:0:0:
