@@ -7,6 +7,11 @@
 #include "AudioWaveformManager.hpp"
 #include "Syncatron.hpp"
 
+#ifdef GEODE_IS_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 using namespace geode::prelude;
 
 class SyncatronPopup : public geode::Popup, public CCMouseDelegate {
@@ -19,26 +24,31 @@ protected:
     CCLabelBMFont* m_timeLabel = nullptr;
     CCMenuItemSpriteExtra* m_playBtn = nullptr;
     CCMenuItemSpriteExtra* m_snapBtn = nullptr;
+    CCMenuItemSpriteExtra* m_modeBtn = nullptr;
 
     std::string m_songPath;
     float m_songLength = 0.f;
     bool m_isPlaying = false;
+    bool m_deleteMode = false;
 
     CCPoint m_touchStartPos;
     CCPoint m_touchPrevPos;
     bool m_isDragging = false;
+    bool m_touchIsDelete = false;
+    bool m_wasRButtonDown = false;
 
     void updateStatus() {
         int count = static_cast<int>(Syncatron::getGuidelines().size());
         if (m_infoLabel && m_waveform) {
             std::string snapStr = m_waveform->isSnapToPeak() ? "ON" : "OFF";
+            std::string modeStr = m_deleteMode ? "DELETE" : "ADD";
             float span = m_waveform->getCurrentSpan();
             float winStart = m_waveform->getWindowStart();
             float winEnd = m_waveform->getWindowEnd();
 
             m_infoLabel->setString(
-                fmt::format("Span: {:.1f}s ({:02}:{:04.1f} - {:02}:{:04.1f}) | Guides: {} | Snap: {}",
-                    span,
+                fmt::format("Mode: {} | Span: {:.1f}s ({:02}:{:04.1f} - {:02}:{:04.1f}) | Guides: {} | Snap: {}",
+                    modeStr, span,
                     static_cast<int>(winStart) / 60, std::fmod(winStart, 60.f),
                     static_cast<int>(winEnd) / 60, std::fmod(winEnd, 60.f),
                     count, snapStr
@@ -55,6 +65,24 @@ protected:
         int totM = static_cast<int>(m_songLength) / 60;
         float totS = std::fmod(m_songLength, 60.f);
         m_timeLabel->setString(fmt::format("{:02}:{:05.2f} / {:02}:{:05.2f}", curM, curS, totM, totS).c_str());
+    }
+
+    void updateModeButton() {
+        if (!m_modeBtn) return;
+        m_modeBtn->removeAllChildren();
+        const char* bg = m_deleteMode ? "GJ_button_06.png" : "GJ_button_01.png";
+        std::string txt = m_deleteMode ? "MODE: DELETE" : "MODE: ADD";
+        auto spr = ButtonSprite::create(txt.c_str(), "chatFont.fnt", bg, 0.42f);
+        spr->setScale(0.72f);
+        m_modeBtn->addChild(spr);
+        m_modeBtn->setContentSize(spr->getContentSize() * 0.72f);
+        spr->setPosition(m_modeBtn->getContentSize() / 2.f);
+    }
+
+    void onModeToggle(CCObject*) {
+        m_deleteMode = !m_deleteMode;
+        updateModeButton();
+        updateStatus();
     }
 
     void updateSnapButton() {
@@ -119,7 +147,7 @@ protected:
     void onZoomStep(CCObject* sender) {
         if (!m_waveform) return;
         int tag = sender->getTag();
-        float factor = (tag > 0) ? 0.65f : 1.50f; // zoom in or zoom out
+        float factor = (tag > 0) ? 0.65f : 1.50f;
         m_waveform->zoomAt(m_waveform->getCurrentCenterTime(), factor);
         updateStatus();
     }
@@ -131,6 +159,29 @@ protected:
         float delta = (tag > 0) ? (span * 0.35f) : (-span * 0.35f);
         m_waveform->pan(delta);
         updateStatus();
+    }
+
+    void onAddAtCursor(CCObject*) {
+        if (!m_waveform) return;
+        float curT = m_waveform->getPlaybackTime();
+        if (m_waveform->addAtTime(curT)) {
+            updateStatus();
+        }
+    }
+
+    void onDeleteAtCursor(CCObject*) {
+        if (!m_waveform) return;
+        float curT = m_waveform->getPlaybackTime();
+        if (m_waveform->deleteNearestTo(curT, 0.6f)) {
+            updateStatus();
+        }
+    }
+
+    void onUndoLast(CCObject*) {
+        if (!m_waveform) return;
+        if (m_waveform->deleteLast()) {
+            updateStatus();
+        }
     }
 
     void onBrowseOsu(CCObject*) {
@@ -171,6 +222,23 @@ protected:
     }
 
     void updatePlayback(float dt) {
+#ifdef GEODE_IS_WINDOWS
+        bool isRButtonDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+        if (isRButtonDown && !m_wasRButtonDown) {
+            auto mousePos = geode::cocos::getMousePos();
+            if (m_waveform) {
+                auto loc = m_waveform->convertToNodeSpace(mousePos);
+                auto size = m_waveform->getContentSize();
+                if (loc.x >= 0.f && loc.x <= size.width &&
+                    loc.y >= 0.f && loc.y <= size.height) {
+                    m_waveform->onTimelineClick(loc, TimelineAction::Delete);
+                    updateStatus();
+                }
+            }
+        }
+        m_wasRButtonDown = isRButtonDown;
+#endif
+
         auto* engine = FMODAudioEngine::sharedEngine();
         if (m_isPlaying && engine && engine->isMusicPlaying(0)) {
             float t = static_cast<float>(engine->getMusicTimeMS(0)) / 1000.f;
@@ -212,6 +280,14 @@ protected:
                 m_touchStartPos = touch->getLocation();
                 m_touchPrevPos = touch->getLocation();
                 m_isDragging = false;
+
+                bool isRight = false;
+                bool isShift = false;
+#ifdef GEODE_IS_WINDOWS
+                isRight = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+                isShift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+#endif
+                m_touchIsDelete = isRight || isShift || m_deleteMode;
                 return true;
             }
         }
@@ -239,7 +315,8 @@ protected:
         if (m_waveform) {
             if (!m_isDragging) {
                 auto loc = m_waveform->convertToNodeSpace(touch->getLocation());
-                m_waveform->onTimelineClick(loc);
+                TimelineAction action = m_touchIsDelete ? TimelineAction::Delete : TimelineAction::Add;
+                m_waveform->onTimelineClick(loc, action);
                 updateStatus();
             }
             m_isDragging = false;
@@ -279,20 +356,20 @@ protected:
         m_titleLabel->setPosition({w / 2.f, h - 38.f});
         m_mainLayer->addChild(m_titleLabel);
 
-        m_infoLabel = CCLabelBMFont::create("Click waveform to add/remove guides | Scroll wheel to zoom", "chatFont.fnt");
-        m_infoLabel->setScale(0.62f);
+        m_infoLabel = CCLabelBMFont::create("L-Click: ADD | R-Click / Shift: DELETE | Scroll: ZOOM", "chatFont.fnt");
+        m_infoLabel->setScale(0.60f);
         m_infoLabel->setColor(ccc3(180, 240, 255));
         m_infoLabel->setPosition({w / 2.f, h - 56.f});
         m_mainLayer->addChild(m_infoLabel);
 
         // 2. MIDDLE: INTERACTIVE WAVEFORM CANVAS
-        float waveW = 430.f;
+        float waveW = 440.f;
         float waveH = 85.f;
         m_waveform = WaveformTimelineNode::create(waveW, waveH);
         m_waveform->setPosition({w / 2.f, h - 110.f});
         m_waveform->setOnGuidelineChange([this](float timeSec, bool added) {
             Notification::create(
-                fmt::format("{} guide at {:.2f}s", added ? "Added" : "Removed", timeSec),
+                fmt::format("{} guide at {:.2f}s", added ? "Added" : "Deleted", timeSec),
                 added ? NotificationIcon::Success : NotificationIcon::Warning
             )->show();
             this->updateStatus();
@@ -315,10 +392,10 @@ protected:
             );
         }
 
-        // 3. ZOOM CONTROLS ROW: [ - ZOOM ] [ FULL ] [ 30s ] [ 10s ] [ 3s ] [ 1s ] [ + ZOOM ]
+        // 3. ZOOM ROW: [- ZOOM] [FULL] [30s] [10s] [3s] [1s] [+ ZOOM]
         auto zoomMenu = CCMenu::create();
         zoomMenu->setPosition({w / 2.f, h - 168.f});
-        zoomMenu->setContentSize({430.f, 26.f});
+        zoomMenu->setContentSize({440.f, 26.f});
         zoomMenu->setLayout(RowLayout::create()->setGap(5.f));
 
         auto zoomOutSpr = ButtonSprite::create("- ZOOM", "chatFont.fnt", "GJ_button_04.png", 0.42f);
@@ -351,55 +428,75 @@ protected:
         zoomMenu->updateLayout();
         m_mainLayer->addChild(zoomMenu);
 
-        // 4. TIMELINE CONTROLS ROW: Play/Pause, Pan, Time, Snap
-        auto playMenu = CCMenu::create();
-        playMenu->setPosition({w / 2.f, h - 198.f});
-        playMenu->setContentSize({430.f, 28.f});
-        playMenu->setLayout(RowLayout::create()->setGap(8.f));
+        // 4. ACTION & MODE ROW: [Play] [MODE: ADD/DEL] [+ AT CURSOR] [- AT CURSOR] [- UNDO] [SNAP]
+        auto actMenu = CCMenu::create();
+        actMenu->setPosition({w / 2.f, h - 198.f});
+        actMenu->setContentSize({440.f, 28.f});
+        actMenu->setLayout(RowLayout::create()->setGap(6.f));
 
         auto playDummy = CCSprite::create();
         m_playBtn = CCMenuItemSpriteExtra::create(playDummy, this, menu_selector(SyncatronPopup::onPlayToggle));
         updatePlayButton();
-        playMenu->addChild(m_playBtn);
+        actMenu->addChild(m_playBtn);
 
-        auto panLSpr = ButtonSprite::create("<< PAN", "chatFont.fnt", "GJ_button_04.png", 0.42f);
-        panLSpr->setScale(0.68f);
-        auto panLBtn = CCMenuItemSpriteExtra::create(panLSpr, this, menu_selector(SyncatronPopup::onPanStep));
-        panLBtn->setTag(-1);
-        playMenu->addChild(panLBtn);
+        auto modeDummy = CCSprite::create();
+        m_modeBtn = CCMenuItemSpriteExtra::create(modeDummy, this, menu_selector(SyncatronPopup::onModeToggle));
+        updateModeButton();
+        actMenu->addChild(m_modeBtn);
 
-        m_timeLabel = CCLabelBMFont::create("00:00.00 / 00:00.00", "bigFont.fnt");
-        m_timeLabel->setScale(0.35f);
-        m_timeLabel->setColor(ccc3(255, 230, 120));
-        playMenu->addChild(m_timeLabel);
+        auto addCurSpr = ButtonSprite::create("+ CURSOR", "chatFont.fnt", "GJ_button_01.png", 0.42f);
+        addCurSpr->setScale(0.68f);
+        auto addCurBtn = CCMenuItemSpriteExtra::create(addCurSpr, this, menu_selector(SyncatronPopup::onAddAtCursor));
+        actMenu->addChild(addCurBtn);
 
-        auto panRSpr = ButtonSprite::create("PAN >>", "chatFont.fnt", "GJ_button_04.png", 0.42f);
-        panRSpr->setScale(0.68f);
-        auto panRBtn = CCMenuItemSpriteExtra::create(panRSpr, this, menu_selector(SyncatronPopup::onPanStep));
-        panRBtn->setTag(1);
-        playMenu->addChild(panRBtn);
+        auto delCurSpr = ButtonSprite::create("- CURSOR", "chatFont.fnt", "GJ_button_06.png", 0.42f);
+        delCurSpr->setScale(0.68f);
+        auto delCurBtn = CCMenuItemSpriteExtra::create(delCurSpr, this, menu_selector(SyncatronPopup::onDeleteAtCursor));
+        actMenu->addChild(delCurBtn);
+
+        auto undoSpr = ButtonSprite::create("- UNDO", "chatFont.fnt", "GJ_button_05.png", 0.42f);
+        undoSpr->setScale(0.68f);
+        auto undoBtn = CCMenuItemSpriteExtra::create(undoSpr, this, menu_selector(SyncatronPopup::onUndoLast));
+        actMenu->addChild(undoBtn);
 
         auto snapDummy = CCSprite::create();
         m_snapBtn = CCMenuItemSpriteExtra::create(snapDummy, this, menu_selector(SyncatronPopup::onSnapToggle));
         updateSnapButton();
-        playMenu->addChild(m_snapBtn);
+        actMenu->addChild(m_snapBtn);
 
-        playMenu->updateLayout();
-        m_mainLayer->addChild(playMenu);
+        actMenu->updateLayout();
+        m_mainLayer->addChild(actMenu);
 
-        // 5. SUB ACTION ROW: [ IMPORT .OSU ] [ CLEAR ALL ]
+        // 5. SUB NAVIGATION ROW: Time readout, Pan buttons, Import, Clear
         auto subMenu = CCMenu::create();
         subMenu->setPosition({w / 2.f, h - 228.f});
-        subMenu->setContentSize({430.f, 26.f});
-        subMenu->setLayout(RowLayout::create()->setGap(10.f));
+        subMenu->setContentSize({440.f, 26.f});
+        subMenu->setLayout(RowLayout::create()->setGap(8.f));
 
-        auto osuSpr = ButtonSprite::create("IMPORT .OSU BEATMAP", "chatFont.fnt", "GJ_button_05.png", 0.42f);
-        osuSpr->setScale(0.72f);
+        auto panLSpr = ButtonSprite::create("<< PAN", "chatFont.fnt", "GJ_button_04.png", 0.40f);
+        panLSpr->setScale(0.65f);
+        auto panLBtn = CCMenuItemSpriteExtra::create(panLSpr, this, menu_selector(SyncatronPopup::onPanStep));
+        panLBtn->setTag(-1);
+        subMenu->addChild(panLBtn);
+
+        m_timeLabel = CCLabelBMFont::create("00:00.00 / 00:00.00", "bigFont.fnt");
+        m_timeLabel->setScale(0.33f);
+        m_timeLabel->setColor(ccc3(255, 230, 120));
+        subMenu->addChild(m_timeLabel);
+
+        auto panRSpr = ButtonSprite::create("PAN >>", "chatFont.fnt", "GJ_button_04.png", 0.40f);
+        panRSpr->setScale(0.65f);
+        auto panRBtn = CCMenuItemSpriteExtra::create(panRSpr, this, menu_selector(SyncatronPopup::onPanStep));
+        panRBtn->setTag(1);
+        subMenu->addChild(panRBtn);
+
+        auto osuSpr = ButtonSprite::create(".OSU", "chatFont.fnt", "GJ_button_05.png", 0.40f);
+        osuSpr->setScale(0.65f);
         auto osuBtn = CCMenuItemSpriteExtra::create(osuSpr, this, menu_selector(SyncatronPopup::onBrowseOsu));
         subMenu->addChild(osuBtn);
 
-        auto clearSpr = ButtonSprite::create("CLEAR ALL GUIDES", "chatFont.fnt", "GJ_button_06.png", 0.42f);
-        clearSpr->setScale(0.72f);
+        auto clearSpr = ButtonSprite::create("CLEAR ALL", "chatFont.fnt", "GJ_button_06.png", 0.40f);
+        clearSpr->setScale(0.65f);
         auto clearBtn = CCMenuItemSpriteExtra::create(clearSpr, this, menu_selector(SyncatronPopup::onClearClick));
         subMenu->addChild(clearBtn);
 
@@ -409,7 +506,7 @@ protected:
         // 6. BOTTOM ACTION ROW: [ APPLY TO EDITOR ] [ BUILD SYNC LAYOUT ]
         auto bottomMenu = CCMenu::create();
         bottomMenu->setPosition({w / 2.f, 25.f});
-        bottomMenu->setContentSize({430.f, 38.f});
+        bottomMenu->setContentSize({440.f, 38.f});
         bottomMenu->setLayout(RowLayout::create()->setGap(12.f));
 
         auto applySpr = ButtonSprite::create("APPLY TO EDITOR", "goldFont.fnt", "GJ_button_02.png", 0.65f);

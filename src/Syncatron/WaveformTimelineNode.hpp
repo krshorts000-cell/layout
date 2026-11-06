@@ -5,9 +5,15 @@
 
 using namespace geode::prelude;
 
+enum class TimelineAction {
+    Add,
+    Delete,
+    Toggle
+};
+
 class WaveformTimelineNode : public CCNode {
 protected:
-    float m_width = 430.f;
+    float m_width = 440.f;
     float m_height = 85.f;
     float m_songLength = 0.f;
     float m_playbackTime = 0.f;
@@ -67,6 +73,10 @@ public:
             }
         }
         redraw();
+    }
+
+    float getPlaybackTime() const {
+        return m_playbackTime;
     }
 
     void setSnapToPeak(bool snap) {
@@ -180,13 +190,66 @@ public:
         return t;
     }
 
-    bool onTimelineClick(const CCPoint& localPoint) {
+    bool addAtTime(float timeSec) {
+        if (m_snapToPeak) {
+            timeSec = snapTimeToNearestPeak(timeSec);
+        }
+        timeSec = std::round(timeSec * 100.f) / 100.f;
+
+        auto& guides = Syncatron::getGuidelines();
+        for (float g : guides) {
+            if (std::abs(g - timeSec) < 0.015f) return false;
+        }
+        guides.push_back(timeSec);
+        std::sort(guides.begin(), guides.end());
+        if (m_onGuidelineChange) m_onGuidelineChange(timeSec, true);
+        Syncatron::applyGuidelinesToEditor(0.0f);
+        redraw();
+        return true;
+    }
+
+    bool deleteNearestTo(float timeSec, float tolerance = 0.5f) {
+        auto& guides = Syncatron::getGuidelines();
+        if (guides.empty()) return false;
+
+        int bestIdx = -1;
+        float bestDist = 999999.f;
+        for (size_t i = 0; i < guides.size(); ++i) {
+            float d = std::abs(guides[i] - timeSec);
+            if (d < tolerance && d < bestDist) {
+                bestDist = d;
+                bestIdx = static_cast<int>(i);
+            }
+        }
+        if (bestIdx >= 0) {
+            float removed = guides[bestIdx];
+            guides.erase(guides.begin() + bestIdx);
+            if (m_onGuidelineChange) m_onGuidelineChange(removed, false);
+            Syncatron::applyGuidelinesToEditor(0.0f);
+            redraw();
+            return true;
+        }
+        return false;
+    }
+
+    bool deleteLast() {
+        auto& guides = Syncatron::getGuidelines();
+        if (guides.empty()) return false;
+        float removed = guides.back();
+        guides.pop_back();
+        if (m_onGuidelineChange) m_onGuidelineChange(removed, false);
+        Syncatron::applyGuidelinesToEditor(0.0f);
+        redraw();
+        return true;
+    }
+
+    bool onTimelineClick(const CCPoint& localPoint, TimelineAction action) {
         if (localPoint.x < 0.f || localPoint.x > m_width ||
             localPoint.y < 0.f || localPoint.y > m_height) {
             return false;
         }
 
-        // If clicked on bottom 8px mini-map bar: jump viewport to that position
+        // Bottom mini-map click: jump viewport
         if (localPoint.y < 9.f && m_songLength > 0.f) {
             float jumpCenter = (localPoint.x / m_width) * m_songLength;
             float span = getCurrentSpan();
@@ -201,38 +264,19 @@ public:
         float ratio = localPoint.x / m_width;
         float clickedTime = m_windowStart + ratio * span;
 
-        if (m_snapToPeak) {
-            clickedTime = snapTimeToNearestPeak(clickedTime);
-        }
-        clickedTime = std::round(clickedTime * 100.f) / 100.f;
-
-        float tolTime = std::max(0.03f, (6.f / m_width) * span);
-        auto& guides = Syncatron::getGuidelines();
-
-        int foundIdx = -1;
-        for (size_t i = 0; i < guides.size(); ++i) {
-            if (std::abs(guides[i] - clickedTime) < tolTime) {
-                foundIdx = static_cast<int>(i);
-                break;
-            }
-        }
-
-        bool added = false;
-        if (foundIdx >= 0) {
-            float removedTime = guides[foundIdx];
-            guides.erase(guides.begin() + foundIdx);
-            added = false;
-            if (m_onGuidelineChange) m_onGuidelineChange(removedTime, false);
+        if (action == TimelineAction::Add) {
+            return addAtTime(clickedTime);
+        } else if (action == TimelineAction::Delete) {
+            float tol = std::max(0.08f, (14.f / m_width) * span);
+            return deleteNearestTo(clickedTime, tol);
         } else {
-            guides.push_back(clickedTime);
-            std::sort(guides.begin(), guides.end());
-            added = true;
-            if (m_onGuidelineChange) m_onGuidelineChange(clickedTime, true);
+            // Toggle
+            float tol = std::max(0.04f, (6.f / m_width) * span);
+            if (deleteNearestTo(clickedTime, tol)) {
+                return true;
+            }
+            return addAtTime(clickedTime);
         }
-
-        Syncatron::applyGuidelinesToEditor(0.0f);
-        redraw();
-        return true;
     }
 
     void redraw() {
@@ -241,7 +285,7 @@ public:
 
         float w = m_width;
         float h = m_height;
-        float waveH = h - 10.f; // reserve bottom 10px for mini-map overview
+        float waveH = h - 10.f;
 
         // 1. Background dark card
         m_drawNode->drawRect(
@@ -343,13 +387,11 @@ public:
         );
 
         if (m_songLength > 0.f) {
-            // Draw mini guideline dots on overview
             for (float gTime : guides) {
                 float minix = (gTime / m_songLength) * w;
                 m_drawNode->drawSegment(ccp(minix, 1.f), ccp(minix, 7.f), 0.8f, ccc4f(1.0f, 0.6f, 0.1f, 0.8f));
             }
 
-            // Highlighted viewport indicator box
             float vx1 = (m_windowStart / m_songLength) * w;
             float vx2 = (m_windowEnd / m_songLength) * w;
             float vWidth = std::max(4.f, vx2 - vx1);
