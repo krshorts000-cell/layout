@@ -89,7 +89,7 @@ class $modify(MyEditorUI, EditorUI)
         botButton->setID("bot-button"_spr);
 
         // Sync-a-tron button: native orange circular badge with music icon
-        auto syncSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_musicOnBtn_001.png", 0.9f, CircleBaseColor::Orange);
+        auto syncSprite = CircleButtonSprite::createWithSpriteFrameName("GJ_musicOnBtn_001.png", 0.9f, CircleBaseColor::DarkPurple);
         syncSprite->setScale(0.72f);
         auto syncButton = CCMenuItemSpriteExtra::create(
             syncSprite,
