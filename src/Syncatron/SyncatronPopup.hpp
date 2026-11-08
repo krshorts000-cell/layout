@@ -219,6 +219,10 @@ protected:
 
     void onAutoBeats(CCObject*) {
         if (!m_waveform) return;
+        if (m_waveform->getSamples().empty()) {
+            Notification::create("Loading waveform... please wait a moment", NotificationIcon::Info)->show();
+            return;
+        }
         try {
             int detected = Syncatron::autoDetectBeats(m_waveform->getSamples(), m_waveform->getSongLength(), m_beatSensitivity);
             if (detected > 0) {

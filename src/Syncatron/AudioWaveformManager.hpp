@@ -18,13 +18,26 @@ public:
         auto editor = LevelEditorLayer::get();
         if (!editor || !editor->m_level) return "";
 
-        std::string path;
+        // 1. Check custom song ID
         if (editor->m_level->m_songID > 0) {
-            path = MusicDownloadManager::sharedState()->pathForSong(editor->m_level->m_songID);
-        } else {
-            path = editor->m_level->getAudioFileName();
+            std::string p = MusicDownloadManager::sharedState()->pathForSong(editor->m_level->m_songID);
+            if (!p.empty() && std::filesystem::exists(p)) {
+                return p;
+            }
         }
-        return CCFileUtils::get()->fullPathForFilename(path.c_str(), false);
+
+        // 2. Official / main song
+        std::string fname = editor->m_level->getAudioFileName();
+        if (!fname.empty()) {
+            if (std::filesystem::exists(fname)) {
+                return fname;
+            }
+            std::string full = CCFileUtils::get()->fullPathForFilename(fname.c_str(), false);
+            if (!full.empty() && std::filesystem::exists(full)) {
+                return full;
+            }
+        }
+        return "";
     }
 
     static std::string getCurrentSongTitle() {
@@ -32,6 +45,10 @@ public:
         if (!editor || !editor->m_level) return "Unknown Song";
 
         if (editor->m_level->m_songID > 0) {
+            auto songInfo = MusicDownloadManager::sharedState()->getSongInfoObject(editor->m_level->m_songID);
+            if (songInfo && !songInfo->m_songName.empty()) {
+                return fmt::format("{} - {}", songInfo->m_artistName, songInfo->m_songName);
+            }
             return fmt::format("Song ID: {}", editor->m_level->m_songID);
         }
         return editor->m_level->getAudioFileName();

@@ -128,7 +128,7 @@ class $modify(MyEditorUI, EditorUI)
     void onOpenSyncatronPopup(CCObject*) {
         auto popup = SyncatronPopup::create([this]() {
             if (auto builder = getBuilder()) {
-                builder->onBuildButton(nullptr);
+                builder->buildStartWithAIMacro();
             }
         });
         if (popup) {
