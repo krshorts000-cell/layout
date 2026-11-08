@@ -169,8 +169,9 @@ namespace Syncatron {
 
         if (list.empty()) return "";
         std::string res;
-        for (float t : list) {
-            res += fmt::format("{:.2f}~{:.1f}~", t, colorCode);
+        for (size_t idx = 0; idx < list.size(); ++idx) {
+            if (idx > 0) res += "~";
+            res += fmt::format("{:.2f}~{:.1f}", list[idx], colorCode);
         }
         return res;
     }
@@ -498,11 +499,16 @@ namespace Syncatron {
         }
 
         int N = static_cast<int>(samples.size());
+        if (N < 4) return 0;
+
         float dt = songLength / static_cast<float>(N);
-        int halfWindow = std::max(2, static_cast<int>(0.35f / dt));
-        int refractorySamples = std::max(1, static_cast<int>(minInterval / dt));
+        if (dt <= 0.0001f) return 0;
+
+        int halfWindow = std::clamp(static_cast<int>(0.35f / dt), 2, std::max(2, N / 4));
+        int refractorySamples = std::max(2, static_cast<int>(minInterval / dt));
 
         std::vector<float> detectedTimes;
+        detectedTimes.reserve(1024);
         int lastBeatIdx = -refractorySamples;
 
         for (int i = 0; i < N; ++i) {
@@ -532,12 +538,17 @@ namespace Syncatron {
                     }
                 }
 
-                float beatTime = (static_cast<float>(bestIdx) / N) * songLength;
+                float beatTime = (static_cast<float>(bestIdx) / static_cast<float>(N)) * songLength;
                 beatTime = std::round(beatTime * 100.f) / 100.f;
 
                 detectedTimes.push_back(beatTime);
-                lastBeatIdx = bestIdx;
-                i = bestIdx + refractorySamples - 1;
+                lastBeatIdx = std::max(i, bestIdx);
+                // Guaranteed forward progress: never let loop go backwards or freeze
+                i = std::max(i, bestIdx) + refractorySamples - 1;
+
+                if (detectedTimes.size() >= 3000) {
+                    break; // Safety limit
+                }
             }
         }
 

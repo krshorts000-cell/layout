@@ -6,9 +6,9 @@
 		"mac": "2.2081",
 		"ios": "2.2081"
 	},
-	"id": "profdragon.syncatron",
-	"name": "Sync-a-tron",
-	"version": "v1.0.0",
+	"id": "profdragon.layoutgenerator",
+	"name": "Layout Generator",
+	"version": "v1.11.1",
 	"developer": "ProfDragon",
 	"description": "Audacity-style interactive music waveform, beat detector, and editor guidelines synchronizer",
 	"dependencies": {
