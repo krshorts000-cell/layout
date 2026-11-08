@@ -484,18 +484,23 @@ namespace Syncatron {
     int autoDetectBeats(const std::vector<float>& samples, float songLength, int sensitivity) {
         if (samples.empty() || songLength <= 0.f) return 0;
 
-        float factor = 1.35f;
-        float minAmp = 0.28f;
-        float minInterval = 0.20f;
+        float maxTrackAmp = 0.001f;
+        for (float s : samples) {
+            if (s > maxTrackAmp) maxTrackAmp = s;
+        }
+
+        float factor = 1.25f;
+        float minAmp = maxTrackAmp * 0.20f;
+        float minInterval = 0.16f;
 
         if (sensitivity == 0) {
-            factor = 1.65f;
-            minAmp = 0.45f;
-            minInterval = 0.32f;
+            factor = 1.50f;
+            minAmp = maxTrackAmp * 0.35f;
+            minInterval = 0.26f;
         } else if (sensitivity == 2) {
-            factor = 1.15f;
-            minAmp = 0.18f;
-            minInterval = 0.12f;
+            factor = 1.10f;
+            minAmp = maxTrackAmp * 0.10f;
+            minInterval = 0.09f;
         }
 
         int N = static_cast<int>(samples.size());
