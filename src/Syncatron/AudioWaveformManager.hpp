@@ -83,7 +83,24 @@ public:
             if (sampleCount <= 0) sampleCount = rawDataSize / 4;
             unsigned int bytesPerSample = (sampleCount > 0) ? (rawDataSize / sampleCount) : 4;
 
-            auto rawData = std::make_unique<uint8_t[]>(rawDataSize);
+            if (rawDataSize == 0 || rawDataSize > 120 * 1024 * 1024) {
+                sound->release();
+                Loader::get()->queueInMainThread([onComplete]() {
+                    if (onComplete) onComplete({}, 0.f);
+                });
+                return;
+            }
+
+            std::unique_ptr<uint8_t[]> rawData;
+            try {
+                rawData = std::make_unique<uint8_t[]>(rawDataSize);
+            } catch (...) {
+                sound->release();
+                Loader::get()->queueInMainThread([onComplete]() {
+                    if (onComplete) onComplete({}, 0.f);
+                });
+                return;
+            }
             unsigned int readCount = 0;
             sound->readData(rawData.get(), rawDataSize, &readCount);
             sound->release();

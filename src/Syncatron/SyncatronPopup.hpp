@@ -219,10 +219,17 @@ protected:
 
     void onAutoBeats(CCObject*) {
         if (!m_waveform) return;
-        int detected = Syncatron::autoDetectBeats(m_waveform->getSamples(), m_waveform->getSongLength(), m_beatSensitivity);
-        if (detected > 0) {
-            m_waveform->redraw();
-            updateStatus();
+        try {
+            int detected = Syncatron::autoDetectBeats(m_waveform->getSamples(), m_waveform->getSongLength(), m_beatSensitivity);
+            if (detected > 0) {
+                m_waveform->redraw();
+                updateStatus();
+            }
+        } catch (const std::exception& e) {
+            log::error("Exception in onAutoBeats: {}", e.what());
+            Notification::create("Beat detection failed", NotificationIcon::Error)->show();
+        } catch (...) {
+            log::error("Unknown error in onAutoBeats");
         }
     }
 
